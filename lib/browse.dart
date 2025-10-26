@@ -137,6 +137,23 @@ class ItemCard extends StatelessWidget {
                           const Center(child: Icon(Icons.broken_image)),
                     ),
                   ),
+                  // Status indicator (oval on left side)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      width: 12,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: item.isDisabled
+                            ? Colors.red
+                            : Colors
+                                  .green, // Yellow will be for 'requested' status later
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    ),
+                  ),
                   Positioned(
                     top: 6,
                     right: 6,

@@ -65,12 +65,10 @@ class _DisableItemsScreenState extends State<DisableItemsScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Request tapped')),
-                    );
+                    Navigator.pushNamed(context, '/browse');
                   },
                   child: Text(
-                    'Request',
+                    'Browse',
                     style: GoogleFonts.poppins(color: Colors.black),
                   ),
                 ),

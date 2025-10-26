@@ -447,12 +447,10 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Request tapped')),
-                    );
+                    Navigator.pushNamed(context, '/browse');
                   },
                   child: Text(
-                    'Request',
+                    'Browse',
                     style: GoogleFonts.poppins(color: Colors.black),
                   ),
                 ),

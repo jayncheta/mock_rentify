@@ -49,7 +49,6 @@ void _showAlertDialog(
             onPressed: () {
               Navigator.of(context).pop();
               if (success) {
-                // Navigate based on role: Staff -> AddItemsScreen, others -> Browse
                 if (user != null && user.role.toLowerCase() == 'staff') {
                   Navigator.pushReplacementNamed(
                     context,
@@ -162,8 +161,6 @@ class RentifyApp extends StatelessWidget {
   }
 }
 
-// BrowseScreen is provided by `lib/browse.dart`.
-
 class WelcomeScreen extends StatelessWidget {
   static const String routeName = '/';
   const WelcomeScreen({super.key});
@@ -250,13 +247,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (foundAccount.username.isNotEmpty) {
-      // Navigate immediately based on role
       if (foundAccount.role.toLowerCase() == 'staff') {
         Navigator.pushReplacementNamed(context, AddItemsScreen.routeName);
       } else {
         Navigator.pushReplacementNamed(context, BrowseScreen.routeName);
       }
-      // Optionally show a small welcome snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Welcome, ${foundAccount.username}!')),
       );

@@ -126,12 +126,10 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Request tapped')),
-                    );
+                    Navigator.pushNamed(context, '/browse');
                   },
                   child: Text(
-                    'Request',
+                    'Browse',
                     style: GoogleFonts.poppins(color: Colors.black),
                   ),
                 ),
@@ -259,11 +257,19 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                             final item = displayItems[index];
                             return ListTile(
                               leading: item.imageUrl.isNotEmpty
-                                  ? Image.file(
-                                      File(item.imageUrl),
-                                      width: 48,
-                                      height: 48,
-                                      fit: BoxFit.cover,
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.asset(
+                                        item.imageUrl,
+                                        width: 48,
+                                        height: 48,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Icon(
+                                              Icons.broken_image,
+                                              size: 48,
+                                            ),
+                                      ),
                                     )
                                   : const Icon(Icons.image, size: 48),
                               title: Text(
@@ -422,10 +428,17 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                 ? (kIsWeb
                       ? Image.network(_imageFile!.path, fit: BoxFit.cover)
                       : Image.file(File(_imageFile!.path), fit: BoxFit.cover))
-                : Image.network(
-                    "https://placehold.co/400x400/333333/FFFFFF?text=Laptop",
-                    fit: BoxFit.cover,
-                  ),
+                : (_editingItem != null && _editingItem!.imageUrl.isNotEmpty
+                      ? Image.asset(
+                          _editingItem!.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.broken_image, size: 48),
+                        )
+                      : Image.network(
+                          "https://placehold.co/400x400/333333/FFFFFF?text=Laptop",
+                          fit: BoxFit.cover,
+                        )),
           ),
         ),
         const SizedBox(width: 16),
