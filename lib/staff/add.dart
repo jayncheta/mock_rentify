@@ -447,7 +447,7 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/browse');
+                    Navigator.pushNamed(context, '/staff/browse');
                   },
                   child: Text(
                     'Browse',

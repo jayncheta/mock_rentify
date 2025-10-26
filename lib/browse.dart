@@ -1,12 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/items_service.dart' show ItemsService;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FavoritesRepo {
   FavoritesRepo._();
   static final FavoritesRepo instance = FavoritesRepo._();
 
   final ValueNotifier<Set<String>> favorites = ValueNotifier(<String>{});
+  static const String _favoritesKey = 'user_favorites';
+
+  Future<void> loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? savedFavorites = prefs.getStringList(_favoritesKey);
+    if (savedFavorites != null) {
+      favorites.value = savedFavorites.toSet();
+    }
+  }
+
+  Future<void> _saveFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_favoritesKey, favorites.value.toList());
+  }
 
   bool isFavorite(String id) => favorites.value.contains(id);
 
@@ -14,6 +29,7 @@ class FavoritesRepo {
     final current = Set<String>.from(favorites.value);
     if (!current.add(id)) current.remove(id);
     favorites.value = current;
+    _saveFavorites();
   }
 }
 
@@ -137,7 +153,7 @@ class ItemCard extends StatelessWidget {
                           const Center(child: Icon(Icons.broken_image)),
                     ),
                   ),
-                  // Status indicator (oval on left side)
+                  // Status
                   Positioned(
                     top: 8,
                     left: 8,
@@ -223,6 +239,9 @@ class _BrowseScreenState extends State<BrowseScreen> {
   @override
   void initState() {
     super.initState();
+    FavoritesRepo.instance.loadFavorites();
+    ItemsService.instance.loadDisabledFlags();
+
     if (!_initialized && ItemsService.instance.items.value.isEmpty) {
       _initialized = true;
       final List<Item> initialItems = [
@@ -312,6 +331,8 @@ class _BrowseScreenState extends State<BrowseScreen> {
         ),
       ];
       ItemsService.instance.items.value = initialItems;
+      // Apply any saved disabled flags to the seeded items
+      ItemsService.instance.loadDisabledFlags();
     }
   }
 

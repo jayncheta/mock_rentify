@@ -3,6 +3,7 @@ import '../browse.dart' show Item;
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ItemsService {
   ItemsService._();
@@ -10,6 +11,46 @@ class ItemsService {
 
   // Observable list of items
   final ValueNotifier<List<Item>> items = ValueNotifier<List<Item>>([]);
+
+  // --- Persistence keys ---
+  static const String _disabledIdsKey = 'disabled_item_ids';
+
+  // Load disabled flags from persistent storage and apply to current items
+  Future<void> loadDisabledFlags() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final disabledList = prefs.getStringList(_disabledIdsKey) ?? <String>[];
+      if (disabledList.isEmpty) return;
+
+      final current = List<Item>.from(items.value);
+      bool changed = false;
+      for (int i = 0; i < current.length; i++) {
+        final it = current[i];
+        final shouldBeDisabled = disabledList.contains(it.id);
+        if (it.isDisabled != shouldBeDisabled) {
+          current[i] = it.copyWith(isDisabled: shouldBeDisabled);
+          changed = true;
+        }
+      }
+      if (changed) items.value = current;
+    } catch (e) {
+      debugPrint('Error loading disabled flags: $e');
+    }
+  }
+
+  // Save current disabled item IDs to persistent storage
+  Future<void> _saveDisabledFlags() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final disabledIds = items.value
+          .where((e) => e.isDisabled)
+          .map((e) => e.id)
+          .toList(growable: false);
+      await prefs.setStringList(_disabledIdsKey, disabledIds);
+    } catch (e) {
+      debugPrint('Error saving disabled flags: $e');
+    }
+  }
 
   // Add a new item
   Future<void> addItem({
@@ -62,8 +103,11 @@ class ItemsService {
 
       if (index == -1) throw Exception('Item not found');
 
+      // Preserve persisted disabled flags if not explicitly changed upstream
+      // Write the updated item back; disabled flag will be persisted via _saveDisabledFlags()
       currentItems[index] = updatedItem;
       items.value = currentItems;
+      await _saveDisabledFlags();
     } catch (e) {
       debugPrint('Error updating item: ${e}');
       rethrow;
@@ -82,6 +126,7 @@ class ItemsService {
         isDisabled: !currentItems[index].isDisabled,
       );
       items.value = currentItems;
+      await _saveDisabledFlags();
     } catch (e) {
       debugPrint('Error toggling item status: ${e}');
       rethrow;
