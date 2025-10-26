@@ -99,20 +99,7 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                   ),
                 ),
               ),
-              title: Text(
-                'Edit Items',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-              ),
               actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, AddItemsScreen.routeName);
-                  },
-                  child: Text(
-                    'Add',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
                 TextButton(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -273,7 +260,7 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
         buildLabel("Item name:"),
         buildTextField(_nameController),
         const SizedBox(height: 16),
-        buildLabel("Item ID (read-only):"),
+        buildLabel("Item ID):"),
         buildTextField(_idController, enabled: false),
         const SizedBox(height: 16),
         buildLabel("Item Description:"),

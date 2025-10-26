@@ -51,10 +51,6 @@ class _DisableItemsScreenState extends State<DisableItemsScreen> {
                   ),
                 ),
               ),
-              title: Text(
-                'Disable Items',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-              ),
               actions: [
                 TextButton(
                   onPressed: () {

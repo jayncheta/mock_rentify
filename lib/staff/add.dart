@@ -5,6 +5,7 @@ import '../services/items_service.dart' show ItemsService;
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'disable.dart' show DisableItemsScreen;
 
 // Additional colors from the image
 const Color formFieldBackgroundColor = Color(0xFFFBE7D7);
@@ -13,7 +14,6 @@ final Color tabInactiveColor = Colors.grey[700]!;
 
 class AddItemsScreen extends StatefulWidget {
   const AddItemsScreen({super.key});
-
   static const String routeName = '/staff/add';
 
   @override
@@ -42,7 +42,6 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
         maxWidth: 800,
         imageQuality: 85,
       );
-
       if (pickedFile != null) {
         setState(() {
           _imageFile = pickedFile;
@@ -73,7 +72,6 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
       );
       return;
     }
-
     if (_selectedCategory == null) {
       ScaffoldMessenger.of(
         context,
@@ -83,9 +81,7 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
 
     try {
       File? imageFile;
-      if (_imageFile != null) {
-        imageFile = File(_imageFile!.path);
-      }
+      if (_imageFile != null) imageFile = File(_imageFile!.path);
 
       await ItemsService.instance.addItem(
         title: name,
@@ -98,14 +94,13 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
           const SnackBar(content: Text('Item added successfully')),
         );
 
+        // Clear form but stay on page
         _nameController.clear();
         _descriptionController.clear();
         setState(() {
           _imageFile = null;
           _selectedCategory = null;
         });
-
-        Navigator.pushNamedAndRemoveUntil(context, '/browse', (route) => false);
       }
     } catch (e) {
       if (mounted) {
@@ -122,31 +117,29 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Select from Gallery'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImage(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Take with Camera'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImage(ImageSource.camera);
-                },
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Select from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take with Camera'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -286,11 +279,7 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
         Expanded(
           child: ElevatedButton(
             onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pushReplacementNamed(context, '/browse');
-              }
+              if (Navigator.canPop(context)) Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
@@ -335,36 +324,76 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
     );
   }
 
-  // ✅ New AppBar with navigation tabs
-  PreferredSizeWidget buildTabAppBar() {
-    return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
-      title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildTabButton("Add", '/staff/add'),
-          _buildTabButton("Edit", '/staff/edit'),
-          _buildTabButton("Disable", '/staff/disable'),
-        ],
+  Widget _buildCustomHeader() {
+    const Color headerBackgroundColor = Color(0xFF222432);
+
+    Widget _headerTextButton(String text, String route, bool isLogout) {
+      final Color textColor = isLogout ? Colors.red.shade700 : Colors.black;
+      return TextButton(
+        onPressed: () {
+          if (isLogout) {
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/login',
+              (route) => false,
+            );
+          } else {
+            if (ModalRoute.of(context)?.settings.name != route)
+              Navigator.pushNamed(context, route);
+          }
+        },
+        child: Text(
+          text,
+          style: GoogleFonts.poppins(
+            color: textColor,
+            fontWeight: FontWeight.w500,
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: headerBackgroundColor,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          decoration: const BoxDecoration(color: Colors.white),
+          child: Row(
+            children: [
+              const CircleAvatar(
+                radius: 18,
+                backgroundColor: Color(0xFFE0E0E0),
+                child: Icon(Icons.person, color: Color(0xFF5D3F37)),
+              ),
+              const Spacer(),
+              _headerTextButton("History", "/history", false),
+              _headerTextButton("Request", "/request", false),
+              _headerTextButton("Logout", "/login", true),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildTabButton(String label, String route) {
-    final bool isActive = ModalRoute.of(context)?.settings.name == route;
-    return TextButton(
-      onPressed: () {
-        if (!isActive) {
-          Navigator.pushReplacementNamed(context, route);
-        }
-      },
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          color: isActive ? primaryColor : tabInactiveColor,
-          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-        ),
+  Widget buildTab(String title, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? primaryColor : tabInactiveColor,
+            ),
+          ),
+          if (isSelected) Container(height: 3, width: 60, color: primaryColor),
+        ],
       ),
     );
   }
@@ -372,18 +401,47 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: buildTabAppBar(),
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            buildForm(),
-            const SizedBox(height: 24),
-            buildActionButtons(),
-          ],
-        ),
+      body: Column(
+        children: [
+          _buildCustomHeader(),
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                buildTab("Add", true, () {}),
+                buildTab(
+                  "Edit",
+                  false,
+                  () => Navigator.pushNamed(context, '/staff/edit'),
+                ),
+                buildTab(
+                  "Disable",
+                  false,
+                  () => Navigator.pushNamed(
+                    context,
+                    DisableItemsScreen.routeName,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  buildForm(),
+                  const SizedBox(height: 24),
+                  buildActionButtons(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
