@@ -32,6 +32,7 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _idController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   String? _selectedCategory;
   final List<String> _categories = [
     "Electronics",
@@ -40,23 +41,35 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
     "Other",
   ];
 
-  late Item _item;
+  Item? _editingItem;
+  List<Item> _filteredItems = [];
 
   @override
   void initState() {
     super.initState();
-    // Note: We can't access ModalRoute in initState; move logic to didChangeDependencies.
+    _searchController.addListener(_onSearchChanged);
+    _filteredItems = ItemsService.instance.getItems();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final itemId = ModalRoute.of(context)?.settings.arguments as String?;
-    if (itemId != null) {
-      _item = ItemsService.instance.getItemById(itemId)!;
-      _nameController.text = _item.title;
-      _selectedCategory = _item.category;
-    }
+  void _onSearchChanged() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredItems = ItemsService.instance.getItems().where((item) {
+        return item.title.toLowerCase().contains(query) ||
+            item.id.toLowerCase().contains(query);
+      }).toList();
+    });
+  }
+
+  void _startEditing(Item item) {
+    setState(() {
+      _editingItem = item;
+      _nameController.text = item.title;
+      _idController.text = item.id;
+      _descriptionController.text = item.description;
+      _selectedCategory = item.category;
+      _imageFile = null;
+    });
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -134,7 +147,7 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                           ),
                         ),
                         content: Text(
-                          'Are you sure you want to logout?',
+                          'Are you sure you want to logout from this device?',
                           style: GoogleFonts.poppins(),
                         ),
                         actions: [
@@ -173,7 +186,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
               elevation: 0,
               iconTheme: const IconThemeData(color: Colors.black),
             ),
-
             // 👇 New Tab Navigation Bar (Add | Edit | Disable)
             Container(
               color: Colors.white,
@@ -202,14 +214,74 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
           ],
         ),
       ),
-
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            buildSearchBar(),
-            const SizedBox(height: 24),
-            buildEditItemForm(),
+            // Search bar
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: "Search by Item ID or Name",
+                hintStyle: GoogleFonts.poppins(
+                  color: Colors.black.withOpacity(0.5),
+                ),
+                prefixIcon: const Icon(Icons.search, color: Colors.black54),
+                filled: true,
+                fillColor: searchBarColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // List of items
+            Expanded(
+              child: _editingItem == null
+                  ? ValueListenableBuilder<List<Item>>(
+                      valueListenable: ItemsService.instance.items,
+                      builder: (context, items, _) {
+                        final displayItems = _searchController.text.isEmpty
+                            ? items
+                            : _filteredItems;
+                        if (displayItems.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'No items found',
+                              style: GoogleFonts.poppins(),
+                            ),
+                          );
+                        }
+                        return ListView.builder(
+                          itemCount: displayItems.length,
+                          itemBuilder: (context, index) {
+                            final item = displayItems[index];
+                            return ListTile(
+                              leading: item.imageUrl.isNotEmpty
+                                  ? Image.file(
+                                      File(item.imageUrl),
+                                      width: 48,
+                                      height: 48,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : const Icon(Icons.image, size: 48),
+                              title: Text(
+                                item.title,
+                                style: GoogleFonts.poppins(),
+                              ),
+                              subtitle: Text(
+                                'ID: ${item.id}',
+                                style: GoogleFonts.poppins(fontSize: 12),
+                              ),
+                              onTap: () => _startEditing(item),
+                            );
+                          },
+                        );
+                      },
+                    )
+                  : SingleChildScrollView(child: buildEditItemForm()),
+            ),
           ],
         ),
       ),
@@ -456,7 +528,8 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
 
   Future<void> _saveChanges() async {
     try {
-      final updatedItem = _item.copyWith(
+      if (_editingItem == null) return;
+      final updatedItem = _editingItem!.copyWith(
         title: _nameController.text.trim(),
         category: _selectedCategory!,
         description: _descriptionController.text.trim(),

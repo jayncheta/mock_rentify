@@ -81,12 +81,29 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
 
     try {
       File? imageFile;
+      String? assetImagePath;
+      // Try to match asset image by name
+      final normalized = name.toLowerCase().replaceAll(
+        RegExp(r'[^a-z0-9]'),
+        '',
+      );
+      final assetCandidates = [
+        'assets/images/$normalized.png',
+        'assets/images/$normalized.jpg',
+        'assets/images/$normalized.jpeg',
+      ];
+      for (final path in assetCandidates) {
+        // This check is not perfect in Flutter, but we can try to use AssetImage and catch errors in browse
+        assetImagePath = path;
+        break;
+      }
       if (_imageFile != null) imageFile = File(_imageFile!.path);
 
       await ItemsService.instance.addItem(
         title: name,
         imageFile: imageFile,
         category: _selectedCategory!,
+        assetImagePath: assetImagePath,
       );
 
       if (mounted) {
@@ -175,6 +192,57 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
           controller: _nameController,
           decoration: InputDecoration(
             hintText: "Items Name",
+            hintStyle: GoogleFonts.poppins(
+              color: Colors.black.withOpacity(0.5),
+            ),
+            filled: true,
+            fillColor: formFieldBackgroundColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          "Item ID:",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          enabled: false,
+          decoration: InputDecoration(
+            hintText: "Auto-generated",
+            hintStyle: GoogleFonts.poppins(
+              color: Colors.black.withOpacity(0.5),
+            ),
+            filled: true,
+            fillColor: formFieldBackgroundColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          "Description:",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _descriptionController,
+          maxLines: 5,
+          decoration: InputDecoration(
+            hintText: "Item Description",
             hintStyle: GoogleFonts.poppins(
               color: Colors.black.withOpacity(0.5),
             ),
@@ -324,61 +392,6 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
     );
   }
 
-  Widget _buildCustomHeader() {
-    const Color headerBackgroundColor = Color(0xFF222432);
-
-    Widget _headerTextButton(String text, String route, bool isLogout) {
-      final Color textColor = isLogout ? Colors.red.shade700 : Colors.black;
-      return TextButton(
-        onPressed: () {
-          if (isLogout) {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/login',
-              (route) => false,
-            );
-          } else {
-            if (ModalRoute.of(context)?.settings.name != route)
-              Navigator.pushNamed(context, route);
-          }
-        },
-        child: Text(
-          text,
-          style: GoogleFonts.poppins(
-            color: textColor,
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      color: headerBackgroundColor,
-      child: SafeArea(
-        bottom: false,
-        child: Container(
-          height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          decoration: const BoxDecoration(color: Colors.white),
-          child: Row(
-            children: [
-              const CircleAvatar(
-                radius: 18,
-                backgroundColor: Color(0xFFE0E0E0),
-                child: Icon(Icons.person, color: Color(0xFF5D3F37)),
-              ),
-              const Spacer(),
-              _headerTextButton("History", "/history", false),
-              _headerTextButton("Request", "/request", false),
-              _headerTextButton("Logout", "/login", true),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget buildTab(String title, bool isSelected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -402,46 +415,131 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildCustomHeader(),
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                buildTab("Add", true, () {}),
-                buildTab(
-                  "Edit",
-                  false,
-                  () => Navigator.pushNamed(context, '/staff/edit'),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(120),
+        child: Column(
+          children: [
+            AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.black),
+              leading: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.grey[200],
+                  child: IconButton(
+                    icon: const Icon(Icons.person),
+                    onPressed: () {},
+                  ),
                 ),
-                buildTab(
-                  "Disable",
-                  false,
-                  () => Navigator.pushNamed(
-                    context,
-                    DisableItemsScreen.routeName,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('History tapped')),
+                    );
+                  },
+                  child: Text(
+                    'History',
+                    style: GoogleFonts.poppins(color: Colors.black),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Request tapped')),
+                    );
+                  },
+                  child: Text(
+                    'Request',
+                    style: GoogleFonts.poppins(color: Colors.black),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(
+                          'Logout',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        content: Text(
+                          'Are you sure you want to logout from this device?',
+                          style: GoogleFonts.poppins(),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text('Cancel', style: GoogleFonts.poppins()),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Logged out')),
+                              );
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/login',
+                                (route) => false,
+                              );
+                            },
+                            child: Text(
+                              'Logout',
+                              style: GoogleFonts.poppins(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'Logout',
+                    style: GoogleFonts.poppins(color: Colors.red),
                   ),
                 ),
               ],
             ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  buildForm(),
-                  const SizedBox(height: 24),
-                  buildActionButtons(),
+                  buildTab("Add", true, () {}),
+                  buildTab(
+                    "Edit",
+                    false,
+                    () => Navigator.pushNamed(context, '/staff/edit'),
+                  ),
+                  buildTab(
+                    "Disable",
+                    false,
+                    () => Navigator.pushNamed(
+                      context,
+                      DisableItemsScreen.routeName,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            buildForm(),
+            const SizedBox(height: 24),
+            buildActionButtons(),
+          ],
+        ),
       ),
     );
   }

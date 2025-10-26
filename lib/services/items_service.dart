@@ -16,6 +16,7 @@ class ItemsService {
     required String title,
     required File? imageFile,
     required String category,
+    String? assetImagePath,
   }) async {
     try {
       // Generate a unique ID
@@ -23,7 +24,9 @@ class ItemsService {
 
       // Save image to app directory and get its path
       String imageUrl = '';
-      if (imageFile != null) {
+      if (assetImagePath != null && assetImagePath.isNotEmpty) {
+        imageUrl = assetImagePath;
+      } else if (imageFile != null) {
         final appDir = await getApplicationDocumentsDirectory();
         final fileName = '${id}${path.extension(imageFile.path)}';
         final savedImage = await imageFile.copy('${appDir.path}/$fileName');

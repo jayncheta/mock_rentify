@@ -57,7 +57,6 @@ class Item {
   }
 }
 
-// Colors
 const primaryColor = Color(0xFFF96A38);
 const secondaryColor = Color(0xFF1F1F1F);
 
@@ -138,7 +137,6 @@ class ItemCard extends StatelessWidget {
                           const Center(child: Icon(Icons.broken_image)),
                     ),
                   ),
-                  // favorite toggle at top-right
                   Positioned(
                     top: 6,
                     right: 6,
@@ -192,12 +190,113 @@ class ItemCard extends StatelessWidget {
   }
 }
 
-// mock data removed; use `items` list as the data source
-
-class BrowseScreen extends StatelessWidget {
+class BrowseScreen extends StatefulWidget {
   static const String routeName = '/browse';
-
   const BrowseScreen({super.key});
+
+  @override
+  State<BrowseScreen> createState() => _BrowseScreenState();
+}
+
+class _BrowseScreenState extends State<BrowseScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_initialized && ItemsService.instance.items.value.isEmpty) {
+      _initialized = true;
+      final List<Item> initialItems = [
+        Item(
+          id: 'ipad1',
+          title: 'ipad',
+          imageUrl: 'assets/images/ipad.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'ipad2',
+          title: 'ipad',
+          imageUrl: 'assets/images/ipad.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'macbook1',
+          title: 'macbook',
+          imageUrl: 'assets/images/macbook.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'macbook2',
+          title: 'macbook',
+          imageUrl: 'assets/images/macbook.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'windowslaptop1',
+          title: 'windows laptop',
+          imageUrl: 'assets/images/windows_laptop.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'windowslaptop2',
+          title: 'windows laptop',
+          imageUrl: 'assets/images/windows_laptop.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'windowslaptop3',
+          title: 'windows laptop',
+          imageUrl: 'assets/images/windows_laptop.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'microphone1',
+          title: 'Microphone',
+          imageUrl: 'assets/images/microphone.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'microphone2',
+          title: 'Microphone',
+          imageUrl: 'assets/images/microphone.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'microphone3',
+          title: 'Microphone',
+          imageUrl: 'assets/images/microphone.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'microphone4',
+          title: 'Microphone',
+          imageUrl: 'assets/images/microphone.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+        Item(
+          id: 'microphone5',
+          title: 'Microphone',
+          imageUrl: 'assets/images/microphone.png',
+          statusColor: 'Available',
+          category: 'Electronics',
+        ),
+      ];
+      ItemsService.instance.items.value = initialItems;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +346,7 @@ class BrowseScreen extends StatelessWidget {
                     style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                   ),
                   content: Text(
-                    'Are you sure you want to logout?',
+                    'Are you sure you want to logout from this device?',
                     style: GoogleFonts.poppins(),
                   ),
                   actions: [
@@ -296,7 +395,21 @@ class BrowseScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     const SizedBox(height: 20),
-                    const SearchBarWidget(),
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search items',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onChanged: (query) {
+                        setState(() {
+                          _searchQuery = query.trim().toLowerCase();
+                        });
+                      },
+                    ),
                     const SizedBox(height: 24),
 
                     // Favorites Section
@@ -352,7 +465,16 @@ class BrowseScreen extends StatelessWidget {
                     ValueListenableBuilder<List<Item>>(
                       valueListenable: ItemsService.instance.items,
                       builder: (context, items, _) {
-                        if (items.isEmpty) {
+                        final filtered = _searchQuery.isEmpty
+                            ? items
+                            : items
+                                  .where(
+                                    (item) => item.title.toLowerCase().contains(
+                                      _searchQuery,
+                                    ),
+                                  )
+                                  .toList();
+                        if (filtered.isEmpty) {
                           return Center(
                             child: Padding(
                               padding: const EdgeInsets.all(32.0),
@@ -378,9 +500,9 @@ class BrowseScreen extends StatelessWidget {
                                 mainAxisSpacing: 16.0,
                                 childAspectRatio: 0.75,
                               ),
-                          itemCount: items.length,
+                          itemCount: filtered.length,
                           itemBuilder: (context, index) {
-                            return ItemCard(item: items[index]);
+                            return ItemCard(item: filtered[index]);
                           },
                         );
                       },
