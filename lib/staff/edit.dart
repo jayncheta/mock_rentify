@@ -126,7 +126,7 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/browse');
+                    Navigator.pushNamed(context, '/staff/browse');
                   },
                   child: Text(
                     'Browse',
@@ -280,6 +280,26 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                                 'ID: ${item.id}',
                                 style: GoogleFonts.poppins(fontSize: 12),
                               ),
+                              trailing: item.isDisabled
+                                  ? Chip(
+                                      label: Text(
+                                        'Disabled',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      backgroundColor: Colors.red,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 0,
+                                      ),
+                                    )
+                                  : null,
                               onTap: () => _startEditing(item),
                             );
                           },
@@ -499,9 +519,17 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
       children: [
         Expanded(
           child: ElevatedButton(
-            onPressed: () => Navigator.canPop(context)
-                ? Navigator.pop(context)
-                : Navigator.pushReplacementNamed(context, '/browse'),
+            onPressed: () {
+              // Return to the in-screen edit list instead of navigating away
+              setState(() {
+                _editingItem = null;
+                _imageFile = null;
+                _nameController.clear();
+                _idController.clear();
+                _descriptionController.clear();
+                _selectedCategory = null;
+              });
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -520,7 +548,34 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
         const SizedBox(width: 16),
         Expanded(
           child: ElevatedButton(
-            onPressed: _saveChanges,
+            onPressed: () {
+              showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text(
+                    'Confirm changes',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  content: Text(
+                    'Are you sure you want to save these changes?',
+                    style: GoogleFonts.poppins(),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Cancel', style: GoogleFonts.poppins()),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _saveChanges();
+                      },
+                      child: Text('Confirm', style: GoogleFonts.poppins()),
+                    ),
+                  ],
+                ),
+              );
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: buttonSaveColor,
               foregroundColor: Colors.white,
@@ -552,7 +607,15 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Item updated successfully')),
         );
-        Navigator.pop(context);
+        // Return to the edit list view instead of navigating away
+        setState(() {
+          _editingItem = null;
+          _imageFile = null;
+          _nameController.clear();
+          _idController.clear();
+          _descriptionController.clear();
+          _selectedCategory = null;
+        });
       }
     } catch (e) {
       if (mounted) {

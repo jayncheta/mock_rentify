@@ -65,7 +65,7 @@ class _DisableItemsScreenState extends State<DisableItemsScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/browse');
+                    Navigator.pushNamed(context, '/staff/browse');
                   },
                   child: Text(
                     'Browse',

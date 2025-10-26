@@ -4,6 +4,7 @@ import 'browse.dart';
 import 'staff/add.dart';
 import 'staff/edit.dart';
 import 'staff/disable.dart';
+import 'staff_browse.dart';
 
 class UserAccount {
   final String username;
@@ -156,6 +157,7 @@ class RentifyApp extends StatelessWidget {
         AddItemsScreen.routeName: (context) => const AddItemsScreen(),
         EditItemsScreen.routeName: (context) => const EditItemsScreen(),
         DisableItemsScreen.routeName: (context) => const DisableItemsScreen(),
+        StaffBrowseScreen.routeName: (context) => const StaffBrowseScreen(),
       },
     );
   }
