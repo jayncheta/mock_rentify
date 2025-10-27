@@ -37,7 +37,12 @@ class _StaffBrowseScreenState extends State<StaffBrowseScreen> {
           padding: const EdgeInsets.all(8.0),
           child: CircleAvatar(
             backgroundColor: Colors.grey[200],
-            child: IconButton(icon: const Icon(Icons.person), onPressed: () {}),
+            child: IconButton(
+              icon: const Icon(Icons.person),
+              onPressed: () {
+                Navigator.pushNamed(context, '/staff/dashboard');
+              },
+            ),
           ),
         ),
         title: Text(

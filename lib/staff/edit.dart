@@ -111,7 +111,9 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                       backgroundColor: Colors.grey[200],
                       child: IconButton(
                         icon: const Icon(Icons.person),
-                        onPressed: () {},
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/staff/dashboard');
+                        },
                       ),
                     ),
                   ),

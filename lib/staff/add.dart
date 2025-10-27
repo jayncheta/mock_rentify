@@ -432,7 +432,9 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                       backgroundColor: Colors.grey[200],
                       child: IconButton(
                         icon: const Icon(Icons.person),
-                        onPressed: () {},
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/staff/dashboard');
+                        },
                       ),
                     ),
                   ),
