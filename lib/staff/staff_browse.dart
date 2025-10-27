@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'browse.dart' show Item, primaryColor;
-import 'services/items_service.dart' show ItemsService;
-import 'staff/add.dart' show AddItemsScreen;
+import '../browse.dart' show Item, primaryColor;
+import '../services/items_service.dart' show ItemsService;
+import 'add.dart' show AddItemsScreen;
 
 class StaffBrowseScreen extends StatefulWidget {
   static const String routeName = '/staff/browse';
