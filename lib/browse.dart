@@ -344,19 +344,22 @@ class _BrowseScreenState extends State<BrowseScreen> {
           padding: const EdgeInsets.all(8.0),
           child: CircleAvatar(
             backgroundColor: Colors.grey[200],
-            child: IconButton(icon: const Icon(Icons.person), onPressed: () {}),
+            child: IconButton(
+              icon: const Icon(Icons.person),
+              onPressed: () {
+                Navigator.pushNamed(context, '/user/profile');
+              },
+            ),
           ),
         ),
         title: Text(
           'Browse',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('History tapped')));
+              Navigator.pushNamed(context, '/user/history');
             },
             child: Text(
               'History',
