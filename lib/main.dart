@@ -4,10 +4,13 @@ import 'browse.dart';
 import 'staff/add.dart';
 import 'staff/edit.dart';
 import 'staff/disable.dart';
-import 'staff_browse.dart';
+import 'staff/staff_browse.dart';
 import 'staff/all_history.dart';
 import 'user/user_history.dart';
 import 'user/user_profile.dart';
+import 'lender/lender_profile.dart';
+import 'lender/dashboard.dart';
+import 'lender/lender_browse.dart';
 
 class UserAccount {
   final String username;
@@ -164,6 +167,9 @@ class RentifyApp extends StatelessWidget {
         StaffHistoryPage.routeName: (context) => const StaffHistoryPage(),
         UserHistoryPage.routeName: (context) => const UserHistoryPage(),
         ProfilePage.routeName: (context) => const ProfilePage(),
+        LenderProfilePage.routeName: (context) => const LenderProfilePage(),
+        DashboardPage.routeName: (context) => const DashboardPage(),
+        LenderBrowseScreen.routeName: (context) => const LenderBrowseScreen(),
       },
     );
   }
@@ -257,6 +263,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (foundAccount.username.isNotEmpty) {
       if (foundAccount.role.toLowerCase() == 'staff') {
         Navigator.pushReplacementNamed(context, AddItemsScreen.routeName);
+      } else if (foundAccount.role.toLowerCase() == 'lender') {
+        Navigator.pushReplacementNamed(context, LenderProfilePage.routeName);
       } else {
         Navigator.pushReplacementNamed(context, BrowseScreen.routeName);
       }
