@@ -423,22 +423,33 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
               backgroundColor: Colors.white,
               elevation: 0,
               iconTheme: const IconThemeData(color: Colors.black),
-              leading: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: CircleAvatar(
-                  backgroundColor: Colors.grey[200],
-                  child: IconButton(
-                    icon: const Icon(Icons.person),
-                    onPressed: () {},
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.grey[200],
+                      child: IconButton(
+                        icon: const Icon(Icons.person),
+                        onPressed: () {},
+                      ),
+                    ),
                   ),
+                ],
+              ),
+              title: Text(
+                'Add Item',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
+              centerTitle: false,
               actions: [
                 TextButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('History tapped')),
-                    );
+                    Navigator.pushNamed(context, '/staff/history');
                   },
                   child: Text(
                     'History',
@@ -504,7 +515,7 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
             ),
             Container(
               color: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [

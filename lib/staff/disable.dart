@@ -41,22 +41,33 @@ class _DisableItemsScreenState extends State<DisableItemsScreen> {
         child: Column(
           children: [
             AppBar(
-              leading: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: CircleAvatar(
-                  backgroundColor: Colors.grey[200],
-                  child: IconButton(
-                    icon: const Icon(Icons.person),
-                    onPressed: () {},
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.grey[200],
+                      child: IconButton(
+                        icon: const Icon(Icons.person),
+                        onPressed: () {},
+                      ),
+                    ),
                   ),
+                ],
+              ),
+              title: Text(
+                'Disable Item',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
                 ),
               ),
+              centerTitle: false,
               actions: [
                 TextButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('History tapped')),
-                    );
+                    Navigator.pushNamed(context, '/staff/history');
                   },
                   child: Text(
                     'History',
@@ -127,7 +138,7 @@ class _DisableItemsScreenState extends State<DisableItemsScreen> {
             // 👇 Top navigation bar: Add | Edit | Disable
             Container(
               color: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -154,10 +165,9 @@ class _DisableItemsScreenState extends State<DisableItemsScreen> {
       ),
 
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         child: Column(
           children: [
-            const SizedBox(height: 24),
             buildSearchBar(),
             const SizedBox(height: 24),
             buildItemsList(),
