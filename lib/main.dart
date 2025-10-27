@@ -6,6 +6,7 @@ import 'staff/edit.dart';
 import 'staff/disable.dart';
 import 'staff/staff_browse.dart';
 import 'staff/all_history.dart';
+import 'staff/staff_dashboard.dart';
 import 'user/user_history.dart';
 import 'user/user_profile.dart';
 import 'lender/lender_profile.dart';
@@ -165,6 +166,7 @@ class RentifyApp extends StatelessWidget {
         DisableItemsScreen.routeName: (context) => const DisableItemsScreen(),
         StaffBrowseScreen.routeName: (context) => const StaffBrowseScreen(),
         StaffHistoryPage.routeName: (context) => const StaffHistoryPage(),
+        StaffDashboardPage.routeName: (context) => const StaffDashboardPage(),
         UserHistoryPage.routeName: (context) => const UserHistoryPage(),
         ProfilePage.routeName: (context) => const ProfilePage(),
         LenderProfilePage.routeName: (context) => const LenderProfilePage(),
@@ -299,7 +301,7 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 20),
               Text(
-                'Welcome back',
+                'Welcome to Rentify',
                 style: GoogleFonts.poppins(
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
