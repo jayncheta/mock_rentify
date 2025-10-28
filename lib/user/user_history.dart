@@ -38,10 +38,22 @@ class _UserHistoryPageState extends State<UserHistoryPage> {
   }
 
   List<Map<String, dynamic>> get _filteredHistory {
-    if (_selectedTab == 'All') return _borrowHistory;
-    return _borrowHistory
-        .where((item) => item['status'] == _selectedTab)
-        .toList();
+    // Apply tab filter first
+    final List<Map<String, dynamic>> base = _selectedTab == 'All'
+        ? _borrowHistory
+        : _borrowHistory
+              .where((item) => item['status'] == _selectedTab)
+              .toList();
+
+    // Then filter UI to show only Windows laptop entries
+    return base.where((entry) {
+      final itm = entry['item'];
+      if (itm is Map<String, dynamic>) {
+        final t = (itm['title'] ?? '').toString().toLowerCase();
+        return t.contains('windows laptop');
+      }
+      return false;
+    }).toList();
   }
 
   Color _statusColor(String status) {
@@ -84,30 +96,40 @@ class _UserHistoryPageState extends State<UserHistoryPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.orangeAccent,
+        backgroundColor: Colors.white,
         automaticallyImplyLeading: false,
         elevation: 0,
-        title: Row(
-          children: [
-            const CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, color: Colors.orangeAccent),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[200],
+            child: IconButton(
+              icon: const Icon(Icons.person),
+              onPressed: () {
+                Navigator.pushNamed(context, '/user/profile');
+              },
             ),
-            const SizedBox(width: 10),
-            Text(
-              'User',
-              style: GoogleFonts.poppins(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
+        ),
+        title: Text(
+          'History',
+          style: GoogleFonts.poppins(
+            color: Colors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/browse');
+            },
+            child: Text(
+              'Browse',
+              style: GoogleFonts.poppins(color: Colors.black),
+            ),
+          ),
+          TextButton(
             onPressed: () {
               showDialog<void>(
                 context: context,
@@ -146,6 +168,10 @@ class _UserHistoryPageState extends State<UserHistoryPage> {
                 ),
               );
             },
+            child: Text(
+              'Logout',
+              style: GoogleFonts.poppins(color: Colors.red),
+            ),
           ),
         ],
       ),

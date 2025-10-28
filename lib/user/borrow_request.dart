@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../browse.dart';
@@ -98,7 +96,13 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
 
     if (picked != null) {
       final now = DateTime.now();
-      final dt = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
+      final dt = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        picked.hour,
+        picked.minute,
+      );
       setState(() {
         controller.text = DateFormat('HH:mm').format(dt);
       });
@@ -216,7 +220,11 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
                     // Final validation: ensure return date >= borrow date
                     if (_toDate.isBefore(_fromDate)) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Return date cannot be before borrow date.')),
+                        const SnackBar(
+                          content: Text(
+                            'Return date cannot be before borrow date.',
+                          ),
+                        ),
                       );
                       return;
                     }

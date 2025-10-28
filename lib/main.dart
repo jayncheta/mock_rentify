@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mock_rentify/user/user_borrowing.dart';
 import 'browse.dart';
 import 'staff/add.dart';
 import 'staff/edit.dart';
@@ -172,11 +171,12 @@ class RentifyApp extends StatelessWidget {
         StaffHistoryPage.routeName: (context) => const StaffHistoryPage(),
         StaffDashboardPage.routeName: (context) => const StaffDashboardPage(),
         UserHistoryPage.routeName: (context) => const UserHistoryPage(),
+        ProfilePage.routeName: (context) => const ProfilePage(),
         LenderProfilePage.routeName: (context) => const LenderProfilePage(),
         DashboardPage.routeName: (context) => const DashboardPage(),
         LenderBrowseScreen.routeName: (context) => const LenderBrowseScreen(),
         LenderReviewScreen.routeName: (context) => const LenderReviewScreen(),
-        
+
         BorrowRequestScreen.routeName: (context) {
           final item = ModalRoute.of(context)!.settings.arguments as Item;
           return BorrowRequestScreen(item: item);

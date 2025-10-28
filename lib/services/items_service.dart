@@ -14,6 +14,7 @@ class ItemsService {
 
   // --- Persistence keys ---
   static const String _disabledIdsKey = 'disabled_item_ids';
+  static const String _borrowedIdsKey = 'borrowed_item_ids';
 
   // Load disabled flags from persistent storage and apply to current items
   Future<void> loadDisabledFlags() async {
@@ -38,6 +39,29 @@ class ItemsService {
     }
   }
 
+  // Load borrowed flags from persistent storage and apply to current items
+  Future<void> loadBorrowedFlags() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final borrowedList = prefs.getStringList(_borrowedIdsKey) ?? <String>[];
+      if (borrowedList.isEmpty) return;
+
+      final current = List<Item>.from(items.value);
+      bool changed = false;
+      for (int i = 0; i < current.length; i++) {
+        final it = current[i];
+        final shouldBeBorrowed = borrowedList.contains(it.id);
+        if (it.isBorrowed != shouldBeBorrowed) {
+          current[i] = it.copyWith(isBorrowed: shouldBeBorrowed);
+          changed = true;
+        }
+      }
+      if (changed) items.value = current;
+    } catch (e) {
+      debugPrint('Error loading borrowed flags: $e');
+    }
+  }
+
   // Save current disabled item IDs to persistent storage
   Future<void> _saveDisabledFlags() async {
     try {
@@ -49,6 +73,20 @@ class ItemsService {
       await prefs.setStringList(_disabledIdsKey, disabledIds);
     } catch (e) {
       debugPrint('Error saving disabled flags: $e');
+    }
+  }
+
+  // Save current borrowed item IDs to persistent storage
+  Future<void> _saveBorrowedFlags() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final borrowedIds = items.value
+          .where((e) => e.isBorrowed)
+          .map((e) => e.id)
+          .toList(growable: false);
+      await prefs.setStringList(_borrowedIdsKey, borrowedIds);
+    } catch (e) {
+      debugPrint('Error saving borrowed flags: $e');
     }
   }
 
@@ -108,6 +146,7 @@ class ItemsService {
       currentItems[index] = updatedItem;
       items.value = currentItems;
       await _saveDisabledFlags();
+      await _saveBorrowedFlags();
     } catch (e) {
       debugPrint('Error updating item: ${e}');
       rethrow;
@@ -129,6 +168,36 @@ class ItemsService {
       await _saveDisabledFlags();
     } catch (e) {
       debugPrint('Error toggling item status: ${e}');
+      rethrow;
+    }
+  }
+
+  // Set item borrowed status
+  Future<void> setBorrowed(String itemId, bool borrowed) async {
+    try {
+      final currentItems = List<Item>.from(items.value);
+      final index = currentItems.indexWhere((item) => item.id == itemId);
+      if (index != -1) {
+        // Update in-memory list if present
+        currentItems[index] = currentItems[index].copyWith(
+          isBorrowed: borrowed,
+        );
+        items.value = currentItems;
+        await _saveBorrowedFlags();
+      } else {
+        // Item list not initialized or missing; persist directly so it will
+        // be applied when items are loaded later via loadBorrowedFlags().
+        final prefs = await SharedPreferences.getInstance();
+        final list = prefs.getStringList(_borrowedIdsKey) ?? <String>[];
+        if (borrowed) {
+          if (!list.contains(itemId)) list.add(itemId);
+        } else {
+          list.remove(itemId);
+        }
+        await prefs.setStringList(_borrowedIdsKey, list);
+      }
+    } catch (e) {
+      debugPrint('Error setting borrowed flag: $e');
       rethrow;
     }
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/items_service.dart' show ItemsService;
 
 class LenderReviewScreen extends StatefulWidget {
   static const String routeName = '/lender/review';
@@ -34,7 +35,10 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
   }
 
   Future<void> _updateRequestStatus(
-      int index, String status, String reason) async {
+    int index,
+    String status,
+    String reason,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getStringList('user_borrow_history') ?? [];
 
@@ -42,11 +46,15 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
     final request = _pendingRequests[index];
     final allRequests = data.map((e) => jsonDecode(e)).toList();
 
+    String? approvedItemId;
     for (final req in allRequests) {
       if (req['item']['title'] == request['item']['title'] &&
           req['borrowerName'] == request['borrowerName']) {
         req['status'] = status;
         req['reason'] = reason;
+        if (status == 'Approved') {
+          approvedItemId = (req['item']['id'] ?? '').toString();
+        }
         break;
       }
     }
@@ -57,10 +65,13 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
     );
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Request ${status.toLowerCase()} successfully'),
-      ),
+      SnackBar(content: Text('Request ${status.toLowerCase()} successfully')),
     );
+
+    // If approved, mark the item as borrowed (yellow status)
+    if (approvedItemId != null && approvedItemId.isNotEmpty) {
+      await ItemsService.instance.setBorrowed(approvedItemId, true);
+    }
 
     _loadPendingRequests(); // Refresh the screen
   }
@@ -81,12 +92,18 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
           children: [
             Image.asset(req['item']['imageUrl'], height: 150),
             const SizedBox(height: 10),
-            Text('Borrower name: ${req['borrowerName']}',
-                style: GoogleFonts.poppins()),
-            Text('Borrowing date: ${req['borrowDate']}',
-                style: GoogleFonts.poppins()),
-            Text('Return date: ${req['returnDate']}',
-                style: GoogleFonts.poppins()),
+            Text(
+              'Borrower name: ${req['borrowerName']}',
+              style: GoogleFonts.poppins(),
+            ),
+            Text(
+              'Borrowing date: ${req['borrowDate']}',
+              style: GoogleFonts.poppins(),
+            ),
+            Text(
+              'Return date: ${req['returnDate']}',
+              style: GoogleFonts.poppins(),
+            ),
             const SizedBox(height: 10),
             TextField(
               controller: reasonController,
@@ -104,9 +121,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
               _updateRequestStatus(index, 'Approved', reasonController.text);
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             child: const Text('Approve'),
           ),
           ElevatedButton(
@@ -114,9 +129,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
               _updateRequestStatus(index, 'Rejected', reasonController.text);
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Reject'),
           ),
         ],
