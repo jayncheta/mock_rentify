@@ -49,6 +49,9 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
     super.initState();
     _searchController.addListener(_onSearchChanged);
     _filteredItems = ItemsService.instance.getItems();
+    // Ensure flags are applied so status reflects real state
+    ItemsService.instance.loadDisabledFlags();
+    ItemsService.instance.loadBorrowedFlags();
   }
 
   void _onSearchChanged() {
@@ -293,27 +296,16 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                                 'ID: ${item.id}',
                                 style: GoogleFonts.poppins(fontSize: 12),
                               ),
-                              trailing: item.isDisabled
-                                  ? Chip(
-                                      label: Text(
-                                        'Disabled',
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      backgroundColor: Colors.red,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 0,
-                                      ),
-                                    )
-                                  : null,
-                              onTap: () => _startEditing(item),
+                              trailing: _buildStatusChip(item),
+                              onTap: () {
+                                if (item.isBorrowed) {
+                                  _showBorrowedBlockedDialog(
+                                    returnToList: false,
+                                  );
+                                } else {
+                                  _startEditing(item);
+                                }
+                              },
                             );
                           },
                         );
@@ -323,6 +315,87 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(Item item) {
+    // Derive status from flags
+    final bool isDisabled = item.isDisabled;
+    final bool isBorrowed = item.isBorrowed;
+
+    String label;
+    Color bg;
+    Color fg = Colors.white;
+
+    if (isDisabled) {
+      label = 'Disabled';
+      bg = Colors.red;
+    } else if (isBorrowed) {
+      label = 'Borrowed';
+      bg = Colors.amber; // yellow
+      fg = Colors.black; // better contrast on amber
+    } else {
+      label = 'Available';
+      bg = const Color(0xFF4CAF50); // green
+    }
+
+    final chip = Chip(
+      label: Text(
+        label,
+        style: GoogleFonts.poppins(
+          color: fg,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      backgroundColor: bg,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+    );
+
+    // Make borrowed chip tappable to show message
+    if (isBorrowed) {
+      return InkWell(
+        onTap: () => _showBorrowedBlockedDialog(returnToList: false),
+        child: chip,
+      );
+    }
+    return chip;
+  }
+
+  void _showBorrowedBlockedDialog({required bool returnToList}) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Alert',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Unavailable for Item Edit. Item is currently being borrowed',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (returnToList) {
+                // Go back to list view
+                setState(() {
+                  _editingItem = null;
+                  _imageFile = null;
+                  _nameController.clear();
+                  _idController.clear();
+                  _descriptionController.clear();
+                  _selectedCategory = null;
+                });
+              }
+            },
+            child: Text('OK', style: GoogleFonts.poppins()),
+          ),
+        ],
       ),
     );
   }
@@ -562,6 +635,10 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
         Expanded(
           child: ElevatedButton(
             onPressed: () {
+              if (_editingItem != null && _editingItem!.isBorrowed) {
+                _showBorrowedBlockedDialog(returnToList: true);
+                return;
+              }
               showDialog<void>(
                 context: context,
                 builder: (context) => AlertDialog(

@@ -25,7 +25,10 @@ class DashboardPage extends StatelessWidget {
         valueListenable: ItemsService.instance.items,
         builder: (context, items, child) {
           // Calculate stats
-          final availableCount = items.where((item) => !item.isDisabled).length;
+          // Available means not disabled and not borrowed
+          final availableCount = items
+              .where((item) => !item.isDisabled && !item.isBorrowed)
+              .length;
           final disabledCount = items.where((item) => item.isDisabled).length;
 
           return Padding(

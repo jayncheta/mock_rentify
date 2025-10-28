@@ -34,6 +34,15 @@ class _LenderBrowseScreenState extends State<LenderBrowseScreen> {
       ),
       body: Column(
         children: [
+          // Ensure flags are applied when lender view opens
+          // (safe to call here; idempotent and quick)
+          FutureBuilder(
+            future: Future.wait([
+              ItemsService.instance.loadDisabledFlags(),
+              ItemsService.instance.loadBorrowedFlags(),
+            ]),
+            builder: (_, __) => const SizedBox.shrink(),
+          ),
           // Search Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -143,11 +152,15 @@ class _LenderItemCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: item.isDisabled
                             ? Colors.red.withOpacity(0.9)
-                            : Colors.green.withOpacity(0.9),
+                            : (item.isBorrowed
+                                  ? Colors.amber.withOpacity(0.9)
+                                  : Colors.green.withOpacity(0.9)),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        item.isDisabled ? 'Disabled' : 'Available',
+                        item.isDisabled
+                            ? 'Disabled'
+                            : (item.isBorrowed ? 'Borrowed' : 'Available'),
                         style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,

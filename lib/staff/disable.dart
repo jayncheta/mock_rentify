@@ -13,7 +13,8 @@ const Color buttonDisableColor = Color(0xFFE53935);
 const Color buttonEnableColor = Color(0xFF4CAF50);
 final Color buttonDisabledGrey = Colors.grey.shade400;
 const Color statusAvailableColor = Color(0xFF4CAF50);
-const Color statusBorrowedColor = Color(0xFFE53935);
+// Yellow for borrowed status
+const Color statusBorrowedColor = Color(0xFFFFC107);
 
 class DisableItemsScreen extends StatefulWidget {
   const DisableItemsScreen({super.key});
@@ -25,6 +26,14 @@ class DisableItemsScreen extends StatefulWidget {
 
 class _DisableItemsScreenState extends State<DisableItemsScreen> {
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure flags are applied so status reflects real state
+    ItemsService.instance.loadDisabledFlags();
+    ItemsService.instance.loadBorrowedFlags();
+  }
 
   @override
   void dispose() {
@@ -234,12 +243,16 @@ class _DisableItemsScreenState extends State<DisableItemsScreen> {
   }
 
   Widget buildItemCard(Item item) {
-    final bool isAvailable = item.statusColor == "Available";
-    final String statusText = item.isDisabled ? "Disabled" : item.statusColor;
+    // Derive status from flags, not the legacy statusColor string
+    final bool isAvailable = !item.isDisabled && !item.isBorrowed;
+    final String statusText = item.isDisabled
+        ? "Disabled"
+        : (item.isBorrowed ? "Borrowed" : "Available");
     final Color statusColor = item.isDisabled
         ? Colors.red
-        : (isAvailable ? statusAvailableColor : statusBorrowedColor);
-    final bool canDisable = isAvailable && !item.isDisabled;
+        : (item.isBorrowed ? statusBorrowedColor : statusAvailableColor);
+    final bool canDisable =
+        isAvailable; // can disable only when fully available
     final bool canEnable = item.isDisabled;
     final String buttonText = item.isDisabled ? "Enable" : "Disable";
     final Color buttonColor = item.isDisabled

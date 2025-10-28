@@ -42,6 +42,7 @@ class Item {
   final String category;
   final String description;
   final bool isDisabled;
+  final bool isBorrowed;
 
   const Item({
     required this.id,
@@ -51,6 +52,7 @@ class Item {
     required this.category,
     this.description = '',
     this.isDisabled = false,
+    this.isBorrowed = false,
   });
 
   Item copyWith({
@@ -61,6 +63,7 @@ class Item {
     String? category,
     String? description,
     bool? isDisabled,
+    bool? isBorrowed,
   }) {
     return Item(
       id: id ?? this.id,
@@ -70,6 +73,7 @@ class Item {
       category: category ?? this.category,
       description: description ?? this.description,
       isDisabled: isDisabled ?? this.isDisabled,
+      isBorrowed: isBorrowed ?? this.isBorrowed,
     );
   }
 }
@@ -155,6 +159,7 @@ class ItemCard extends StatelessWidget {
                     ),
                   ),
                   // 🔴 Green = available, Red = unavailable
+                  // 🟡 Yellow = borrowed
                   Positioned(
                     top: 8,
                     left: 8,
@@ -162,12 +167,15 @@ class ItemCard extends StatelessWidget {
                       width: 12,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: item.isDisabled ? Colors.red : Colors.green,
+                        color: item.isDisabled
+                            ? Colors.red
+                            : (item.isBorrowed ? Colors.amber : Colors.green),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: Colors.white, width: 1.5),
                       ),
                     ),
                   ),
+
                   // Favorite icon
                   Positioned(
                     top: 6,
@@ -217,6 +225,14 @@ class ItemCard extends StatelessWidget {
                         duration: Duration(seconds: 2),
                       ),
                     );
+                  } else if (item.isBorrowed) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('This item is currently borrowed'),
+                        backgroundColor: Colors.amber,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
                   } else {
                     Navigator.pushNamed(
                       context,
@@ -253,6 +269,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
     super.initState();
     FavoritesRepo.instance.loadFavorites();
     ItemsService.instance.loadDisabledFlags();
+    ItemsService.instance.loadBorrowedFlags();
 
     if (!_initialized && ItemsService.instance.items.value.isEmpty) {
       _initialized = true;
@@ -346,6 +363,8 @@ class _BrowseScreenState extends State<BrowseScreen> {
       ItemsService.instance.items.value = initialItems;
       // Apply any saved disabled flags to the seeded items
       ItemsService.instance.loadDisabledFlags();
+      // Apply any saved borrowed flags to the seeded items
+      ItemsService.instance.loadBorrowedFlags();
     }
   }
 
@@ -375,23 +394,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
               Navigator.pushNamed(context, '/user/history');
             },
             child: Text(
-              'History',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          // 👇 FIXED: This is the corrected 'Request' button.
-          // It now navigates without trying to reference a non-existent 'item' or 'items'.
-          // We pass 'arguments: null' to signify a new, generic request.
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(
-                context,
-                BorrowRequestScreen.routeName,
-                arguments: null, // Pass null for a generic request
-              );
-            },
-            child: Text(
-              'Request',
+              'Request History',
               style: GoogleFonts.poppins(color: Colors.black),
             ),
           ),
@@ -527,12 +530,12 @@ class _BrowseScreenState extends State<BrowseScreen> {
                         final filtered = _searchQuery.isEmpty
                             ? items
                             : items
-                                    .where(
-                                        (item) => item.title.toLowerCase().contains(
-                                              _searchQuery,
-                                            ),
-                                    )
-                                    .toList();
+                                  .where(
+                                    (item) => item.title.toLowerCase().contains(
+                                      _searchQuery,
+                                    ),
+                                  )
+                                  .toList();
                         if (filtered.isEmpty) {
                           return Center(
                             child: Padding(

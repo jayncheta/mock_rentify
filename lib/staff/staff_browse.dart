@@ -21,6 +21,7 @@ class _StaffBrowseScreenState extends State<StaffBrowseScreen> {
     super.initState();
     // Ensure disabled states are applied when staff view opens
     ItemsService.instance.loadDisabledFlags();
+    ItemsService.instance.loadBorrowedFlags();
   }
 
   @override
@@ -237,11 +238,15 @@ class StaffItemCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: item.isDisabled
                             ? Colors.red.withOpacity(0.9)
-                            : Colors.green.withOpacity(0.9),
+                            : (item.isBorrowed
+                                  ? Colors.amber.withOpacity(0.9)
+                                  : Colors.green.withOpacity(0.9)),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        item.isDisabled ? 'Disabled' : 'Available',
+                        item.isDisabled
+                            ? 'Disabled'
+                            : (item.isBorrowed ? 'Borrowed' : 'Available'),
                         style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,

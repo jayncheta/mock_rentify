@@ -1,9 +1,92 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:convert';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatelessWidget {
   static const String routeName = '/user/profile';
   const ProfilePage({super.key});
+
+  Future<Map<String, int>> _getCounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? [];
+
+    // We'll count only Windows laptop entries and make currently renting binary (0/1).
+    int currentlyRenting = 0;
+    int lateReturns = 0;
+    int onTimeReturns = 0;
+    int rentHistory = 0;
+
+    final df = DateFormat('dd/MM/yy');
+    final today = DateTime.now();
+    final todayDateOnly = DateTime(today.year, today.month, today.day);
+
+    bool hasActiveCurrent =
+        false; // track if any active Windows laptop rental exists
+
+    for (final s in list) {
+      Map<String, dynamic> r;
+      try {
+        r = jsonDecode(s) as Map<String, dynamic>;
+      } catch (_) {
+        continue;
+      }
+
+      // Filter to Windows laptop only
+      final itm = r['item'];
+      if (itm is! Map<String, dynamic>) continue;
+      final title = (itm['title'] ?? '').toString().toLowerCase();
+      if (!title.contains('windows laptop')) continue;
+
+      final status = (r['status'] ?? '').toString();
+
+      // planned return date
+      DateTime? plannedReturn;
+      final plannedReturnStr = (r['returnDate'] ?? '').toString();
+      if (plannedReturnStr.isNotEmpty) {
+        try {
+          plannedReturn = df.parse(plannedReturnStr);
+        } catch (_) {}
+      }
+
+      // if present, indicates a completed rental
+      DateTime? returnedAt;
+      final returnedAtStr = (r['returnedAt'] ?? '').toString();
+      if (returnedAtStr.isNotEmpty) {
+        try {
+          returnedAt = DateTime.parse(returnedAtStr);
+        } catch (_) {}
+      }
+
+      if (returnedAt != null) {
+        // Count only Windows laptop returns
+        rentHistory += 1;
+        if (plannedReturn != null && returnedAt.isAfter(plannedReturn)) {
+          lateReturns += 1;
+        } else {
+          onTimeReturns += 1;
+        }
+      } else {
+        // Not returned yet; consider as active only when approved and not past planned return
+        if (status == 'Approved') {
+          if (plannedReturn == null || !plannedReturn.isBefore(todayDateOnly)) {
+            hasActiveCurrent = true;
+          }
+        }
+      }
+    }
+
+    // Binary currently renting: 1 if any active approved Windows laptop rental exists, else 0
+    currentlyRenting = hasActiveCurrent ? 1 : 0;
+
+    return {
+      'currently': currentlyRenting,
+      'late': lateReturns,
+      'history': rentHistory,
+      'ontime': onTimeReturns,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,13 +125,6 @@ class ProfilePage extends StatelessWidget {
               },
               child: Text(
                 'History',
-                style: GoogleFonts.poppins(color: Colors.black),
-              ),
-            ),
-            TextButton(
-              onPressed: () {},
-              child: Text(
-                'Request',
                 style: GoogleFonts.poppins(color: Colors.black),
               ),
             ),
@@ -113,27 +189,43 @@ class ProfilePage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- Grid of Stats ---
+            // --- Grid of Stats (live) ---
             Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1,
-                children: [
-                  _buildStatCard(
-                    '1',
-                    'Currently Renting',
-                    const Color(0xFFFF8C42),
-                  ),
-                  _buildStatCard('1', 'Late Returns', const Color(0xFFE53935)),
-                  _buildStatCard('20', 'Rent History', const Color(0xFF00BFA6)),
-                  _buildStatCard(
-                    '19',
-                    'On time Returns',
-                    const Color(0xFF26A69A),
-                  ),
-                ],
+              child: FutureBuilder<Map<String, int>>(
+                future: _getCounts(),
+                builder: (context, snapshot) {
+                  final counts =
+                      snapshot.data ??
+                      {'currently': 0, 'late': 0, 'history': 0, 'ontime': 0};
+                  return GridView.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1,
+                    children: [
+                      _buildStatCard(
+                        '${counts['currently']}',
+                        'Currently Renting',
+                        const Color(0xFFFF8C42),
+                      ),
+                      _buildStatCard(
+                        '${counts['late']}',
+                        'Late Returns',
+                        const Color(0xFFE53935),
+                      ),
+                      _buildStatCard(
+                        '${counts['history']}',
+                        'Rent History',
+                        const Color(0xFF00BFA6),
+                      ),
+                      _buildStatCard(
+                        '${counts['ontime']}',
+                        'On time Returns',
+                        const Color(0xFF26A69A),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
