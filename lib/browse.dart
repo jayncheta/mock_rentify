@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/items_service.dart' show ItemsService;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'user/borrow_request.dart';
 
 class FavoritesRepo {
   FavoritesRepo._();
@@ -153,7 +154,7 @@ class ItemCard extends StatelessWidget {
                           const Center(child: Icon(Icons.broken_image)),
                     ),
                   ),
-                  // Status
+                  // 🔴 Green = available, Red = unavailable
                   Positioned(
                     top: 8,
                     left: 8,
@@ -161,15 +162,13 @@ class ItemCard extends StatelessWidget {
                       width: 12,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: item.isDisabled
-                            ? Colors.red
-                            : Colors
-                                  .green, // Yellow will be for 'requested' status later
+                        color: item.isDisabled ? Colors.red : Colors.green,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: Colors.white, width: 1.5),
                       ),
                     ),
                   ),
+                  // Favorite icon
                   Positioned(
                     top: 6,
                     right: 6,
@@ -204,14 +203,27 @@ class ItemCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             child: SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                ),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Requested to rent "${item.title}"'),
-                    ),
-                  );
+                  if (item.isDisabled) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('This item is unavailable'),
+                        backgroundColor: Colors.redAccent,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  } else {
+                    Navigator.pushNamed(
+                      context,
+                      BorrowRequestScreen.routeName,
+                      arguments: item,
+                    );
+                  }
                 },
                 child: Text('Rent', style: GoogleFonts.poppins()),
               ),
@@ -249,8 +261,9 @@ class _BrowseScreenState extends State<BrowseScreen> {
           id: 'ipad1',
           title: 'ipad',
           imageUrl: 'assets/images/ipad.png',
-          statusColor: 'Available',
+          statusColor: 'Unvailable',
           category: 'Electronics',
+          isDisabled: true,
         ),
         Item(
           id: 'ipad2',
@@ -366,11 +379,16 @@ class _BrowseScreenState extends State<BrowseScreen> {
               style: GoogleFonts.poppins(color: Colors.black),
             ),
           ),
+          // 👇 FIXED: This is the corrected 'Request' button.
+          // It now navigates without trying to reference a non-existent 'item' or 'items'.
+          // We pass 'arguments: null' to signify a new, generic request.
           TextButton(
             onPressed: () {
-              ScaffoldMessenger.of(
+              Navigator.pushNamed(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('Request tapped')));
+                BorrowRequestScreen.routeName,
+                arguments: null, // Pass null for a generic request
+              );
             },
             child: Text(
               'Request',
@@ -509,12 +527,12 @@ class _BrowseScreenState extends State<BrowseScreen> {
                         final filtered = _searchQuery.isEmpty
                             ? items
                             : items
-                                  .where(
-                                    (item) => item.title.toLowerCase().contains(
-                                      _searchQuery,
-                                    ),
-                                  )
-                                  .toList();
+                                    .where(
+                                        (item) => item.title.toLowerCase().contains(
+                                              _searchQuery,
+                                            ),
+                                    )
+                                    .toList();
                         if (filtered.isEmpty) {
                           return Center(
                             child: Padding(
