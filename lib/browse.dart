@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'services/items_service.dart' show ItemsService;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'user/borrow_request.dart';
+import 'dart:convert';
 
 class FavoritesRepo {
   FavoritesRepo._();
@@ -26,11 +27,69 @@ class FavoritesRepo {
 
   bool isFavorite(String id) => favorites.value.contains(id);
 
-  void toggle(String id) {
+  void toggle(String id, String itemName, BuildContext context) {
     final current = Set<String>.from(favorites.value);
-    if (!current.add(id)) current.remove(id);
-    favorites.value = current;
-    _saveFavorites();
+    final isFav = current.contains(id);
+
+    if (isFav) {
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            'Remove from Favorites',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
+          content: Text(
+            'Would you like to remove "$itemName" from your favorites?',
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel', style: GoogleFonts.poppins()),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                current.remove(id);
+                favorites.value = current;
+                _saveFavorites();
+              },
+              child: Text('Yes', style: GoogleFonts.poppins()),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            'Add to Favorites',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          ),
+          content: Text(
+            'Would you like to add "$itemName" to your favorites?',
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel', style: GoogleFonts.poppins()),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                current.add(id);
+                favorites.value = current;
+                _saveFavorites();
+              },
+              child: Text('Yes', style: GoogleFonts.poppins()),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
 
@@ -119,7 +178,8 @@ class FavoriteItemCard extends StatelessWidget {
           builder: (context, favs, _) {
             final isFav = favs.contains(item.id);
             return IconButton(
-              onPressed: () => FavoritesRepo.instance.toggle(item.id),
+              onPressed: () =>
+                  FavoritesRepo.instance.toggle(item.id, item.title, context),
               icon: Icon(
                 isFav ? Icons.favorite : Icons.favorite_border,
                 color: isFav ? primaryColor : Colors.grey,
@@ -135,6 +195,27 @@ class FavoriteItemCard extends StatelessWidget {
 class ItemCard extends StatelessWidget {
   final Item item;
   const ItemCard({super.key, required this.item});
+
+  Future<bool> _hasActiveBorrow() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? [];
+
+    for (final s in list) {
+      try {
+        final r = jsonDecode(s) as Map<String, dynamic>;
+        final status = (r['status'] ?? '').toString();
+        final returnedAt = r['returnedAt'];
+
+        // Check if there's an approved item that hasn't been returned
+        if (status == 'Approved' && returnedAt == null) {
+          return true;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -191,8 +272,11 @@ class ItemCard extends StatelessWidget {
                               isFav ? Icons.favorite : Icons.favorite_border,
                               color: isFav ? primaryColor : Colors.grey,
                             ),
-                            onPressed: () =>
-                                FavoritesRepo.instance.toggle(item.id),
+                            onPressed: () => FavoritesRepo.instance.toggle(
+                              item.id,
+                              item.title,
+                              context,
+                            ),
                           ),
                         );
                       },
@@ -216,7 +300,7 @@ class ItemCard extends StatelessWidget {
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
                 ),
-                onPressed: () {
+                onPressed: () async {
                   if (item.isDisabled) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -234,11 +318,25 @@ class ItemCard extends StatelessWidget {
                       ),
                     );
                   } else {
-                    Navigator.pushNamed(
-                      context,
-                      BorrowRequestScreen.routeName,
-                      arguments: item,
-                    );
+                    // Check if user has already borrowed an item
+                    final hasActive = await _hasActiveBorrow();
+                    if (hasActive) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'You have reached your limit of borrowing items for today (1/1)',
+                          ),
+                          backgroundColor: Colors.redAccent,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    } else {
+                      Navigator.pushNamed(
+                        context,
+                        BorrowRequestScreen.routeName,
+                        arguments: item,
+                      );
+                    }
                   }
                 },
                 child: Text('Rent', style: GoogleFonts.poppins()),
@@ -276,7 +374,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
       final List<Item> initialItems = [
         Item(
           id: 'ipad1',
-          title: 'ipad',
+          title: 'ipad1',
           imageUrl: 'assets/images/ipad.png',
           statusColor: 'Unvailable',
           category: 'Electronics',
@@ -284,77 +382,77 @@ class _BrowseScreenState extends State<BrowseScreen> {
         ),
         Item(
           id: 'ipad2',
-          title: 'ipad',
+          title: 'ipad2',
           imageUrl: 'assets/images/ipad.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'macbook1',
-          title: 'macbook',
+          title: 'macbook1',
           imageUrl: 'assets/images/macbook.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'macbook2',
-          title: 'macbook',
+          title: 'macbook2',
           imageUrl: 'assets/images/macbook.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'windowslaptop1',
-          title: 'windows laptop',
+          title: 'windows laptop1',
           imageUrl: 'assets/images/windows_laptop.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'windowslaptop2',
-          title: 'windows laptop',
+          title: 'windows laptop2',
           imageUrl: 'assets/images/windows_laptop.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'windowslaptop3',
-          title: 'windows laptop',
+          title: 'windows laptop3',
           imageUrl: 'assets/images/windows_laptop.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'microphone1',
-          title: 'Microphone',
+          title: 'Microphone1',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'microphone2',
-          title: 'Microphone',
+          title: 'Microphone2',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'microphone3',
-          title: 'Microphone',
+          title: 'Microphone3',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'microphone4',
-          title: 'Microphone',
+          title: 'Microphone4',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
           category: 'Electronics',
         ),
         Item(
           id: 'microphone5',
-          title: 'Microphone',
+          title: 'Microphone5',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
           category: 'Electronics',
@@ -391,10 +489,10 @@ class _BrowseScreenState extends State<BrowseScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pushNamed(context, '/user/history');
+              Navigator.pushNamed(context, '/user/request');
             },
             child: Text(
-              'Request History',
+              'Request',
               style: GoogleFonts.poppins(color: Colors.black),
             ),
           ),

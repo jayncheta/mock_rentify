@@ -7,7 +7,8 @@ import 'staff/disable.dart';
 import 'staff/staff_browse.dart';
 import 'staff/all_history.dart';
 import 'staff/staff_dashboard.dart';
-import 'user/user_history.dart';
+import 'staff/return_item.dart';
+import 'user/user_request.dart';
 import 'user/user_profile.dart';
 import 'user/borrow_request.dart';
 import 'user/user_borrowing.dart';
@@ -170,7 +171,8 @@ class RentifyApp extends StatelessWidget {
         StaffBrowseScreen.routeName: (context) => const StaffBrowseScreen(),
         StaffHistoryPage.routeName: (context) => const StaffHistoryPage(),
         StaffDashboardPage.routeName: (context) => const StaffDashboardPage(),
-        UserHistoryPage.routeName: (context) => const UserHistoryPage(),
+        StaffReturnScreen.routeName: (context) => const StaffReturnScreen(),
+        UserRequestPage.routeName: (context) => const UserRequestPage(),
         ProfilePage.routeName: (context) => const ProfilePage(),
         LenderProfilePage.routeName: (context) => const LenderProfilePage(),
         DashboardPage.routeName: (context) => const DashboardPage(),

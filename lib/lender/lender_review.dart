@@ -53,6 +53,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
         req['status'] = status;
         req['reason'] = reason;
         if (status == 'Approved') {
+          req['approvedAt'] = DateTime.now().toIso8601String();
           approvedItemId = (req['item']['id'] ?? '').toString();
         }
         break;

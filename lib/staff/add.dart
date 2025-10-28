@@ -440,15 +440,18 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                   ),
                 ],
               ),
-              title: Text(
-                'Add Item',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
+              title: const SizedBox.shrink(),
               centerTitle: false,
               actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/staff/return');
+                  },
+                  child: Text(
+                    'Return',
+                    style: GoogleFonts.poppins(color: Colors.black),
+                  ),
+                ),
                 TextButton(
                   onPressed: () {
                     Navigator.pushNamed(context, '/staff/history');
