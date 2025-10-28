@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dashboard.dart';
 import 'lender_browse.dart';
+import 'lender_review.dart';
 
 class LenderProfilePage extends StatelessWidget {
   static const String routeName = '/lender/profile';
@@ -59,7 +60,10 @@ class LenderProfilePage extends StatelessWidget {
                             width: double.infinity,
                             child: OutlinedButton(
                               onPressed: () {
-                                // TODO: Navigate to Review Request page
+                                Navigator.pushNamed(
+                                  context,
+                                  LenderReviewScreen.routeName,
+                                );
                               },
                               child: const Text('Review Request'),
                             ),

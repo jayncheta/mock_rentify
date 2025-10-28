@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mock_rentify/user/user_borrowing.dart';
 import 'browse.dart';
 import 'staff/add.dart';
 import 'staff/edit.dart';
@@ -9,9 +10,12 @@ import 'staff/all_history.dart';
 import 'staff/staff_dashboard.dart';
 import 'user/user_history.dart';
 import 'user/user_profile.dart';
+import 'user/borrow_request.dart';
+import 'user/user_borrowing.dart';
 import 'lender/lender_profile.dart';
 import 'lender/dashboard.dart';
 import 'lender/lender_browse.dart';
+import 'lender/lender_review.dart';
 
 class UserAccount {
   final String username;
@@ -168,10 +172,28 @@ class RentifyApp extends StatelessWidget {
         StaffHistoryPage.routeName: (context) => const StaffHistoryPage(),
         StaffDashboardPage.routeName: (context) => const StaffDashboardPage(),
         UserHistoryPage.routeName: (context) => const UserHistoryPage(),
-        ProfilePage.routeName: (context) => const ProfilePage(),
         LenderProfilePage.routeName: (context) => const LenderProfilePage(),
         DashboardPage.routeName: (context) => const DashboardPage(),
         LenderBrowseScreen.routeName: (context) => const LenderBrowseScreen(),
+        LenderReviewScreen.routeName: (context) => const LenderReviewScreen(),
+        
+        BorrowRequestScreen.routeName: (context) {
+          final item = ModalRoute.of(context)!.settings.arguments as Item;
+          return BorrowRequestScreen(item: item);
+        },
+        UserBorrowingScreen.routeName: (context) {
+          final map =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>;
+          return UserBorrowingScreen(
+            item: map['item'],
+            borrowDate: map['borrowDate'],
+            pickUpTime: map['pickUpTime'],
+            returnDate: map['returnDate'],
+            returnTime: map['returnTime'],
+            reason: map['reason'],
+          );
+        },
       },
     );
   }
