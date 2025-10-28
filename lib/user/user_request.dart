@@ -3,15 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class UserHistoryPage extends StatefulWidget {
-  static const String routeName = '/user/history';
-  const UserHistoryPage({super.key});
+class UserRequestPage extends StatefulWidget {
+  static const String routeName = '/user/request';
+  const UserRequestPage({super.key});
 
   @override
-  State<UserHistoryPage> createState() => _UserHistoryPageState();
+  State<UserRequestPage> createState() => _UserRequestPageState();
 }
 
-class _UserHistoryPageState extends State<UserHistoryPage> {
+class _UserRequestPageState extends State<UserRequestPage> {
   List<Map<String, dynamic>> _borrowHistory = [];
   String _selectedTab = 'All';
 
@@ -112,7 +112,7 @@ class _UserHistoryPageState extends State<UserHistoryPage> {
           ),
         ),
         title: Text(
-          'History',
+          'Requests',
           style: GoogleFonts.poppins(
             color: Colors.black,
             fontSize: 18,

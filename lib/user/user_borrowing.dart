@@ -54,12 +54,12 @@ class UserBorrowingScreen extends StatelessWidget {
     await prefs.setStringList('user_borrow_history', data);
 
     // Confirmation message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Borrow request submitted!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Borrow request submitted!')));
 
     // Navigate to history page
-    Navigator.pushNamed(context, '/user/history');
+    Navigator.pushNamed(context, '/user/request');
   }
 
   @override

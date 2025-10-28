@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/items_service.dart';
@@ -6,6 +8,53 @@ class StaffDashboardPage extends StatelessWidget {
   static const String routeName = '/staff/dashboard';
   const StaffDashboardPage({super.key});
 
+  Future<int> _getBorrowedTodayCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
+    final now = DateTime.now();
+    int count = 0;
+    for (final s in list) {
+      try {
+        final rec = jsonDecode(s) as Map<String, dynamic>;
+        final status = (rec['status'] ?? '').toString();
+        if (status != 'Approved') continue;
+        DateTime? when;
+        final approvedAtStr = (rec['approvedAt'] ?? '').toString();
+        if (approvedAtStr.isNotEmpty) {
+          when = DateTime.tryParse(approvedAtStr);
+        }
+        when ??= DateTime.tryParse((rec['createdAt'] ?? '').toString());
+        if (when == null) continue;
+        if (when.year == now.year &&
+            when.month == now.month &&
+            when.day == now.day) {
+          count++;
+        }
+      } catch (_) {
+        // ignore bad record
+      }
+    }
+    return count;
+  }
+
+  Future<int> _getPendingRequestCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
+    int count = 0;
+    for (final s in list) {
+      try {
+        final rec = jsonDecode(s) as Map<String, dynamic>;
+        final status = (rec['status'] ?? '').toString();
+        if (status == 'Pending') {
+          count++;
+        }
+      } catch (_) {
+        // ignore bad record
+      }
+    }
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -13,12 +62,91 @@ class StaffDashboardPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pop(context);
-          },
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[200],
+            child: IconButton(
+              icon: const Icon(Icons.person),
+              onPressed: () {
+                // Already on dashboard
+              },
+            ),
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/staff/history');
+            },
+            child: Text(
+              'History',
+              style: GoogleFonts.poppins(color: Colors.black),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/staff/browse');
+            },
+            child: Text(
+              'Browse',
+              style: GoogleFonts.poppins(color: Colors.black),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/staff/return');
+            },
+            child: Text(
+              'Return',
+              style: GoogleFonts.poppins(color: Colors.black),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text(
+                    'Logout',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  content: Text(
+                    'Are you sure you want to logout?',
+                    style: GoogleFonts.poppins(),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('Cancel', style: GoogleFonts.poppins()),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Logged out')),
+                        );
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/',
+                          (route) => false,
+                        );
+                      },
+                      child: Text(
+                        'Logout',
+                        style: GoogleFonts.poppins(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+            child: Text(
+              'Logout',
+              style: GoogleFonts.poppins(color: Colors.red),
+            ),
+          ),
+        ],
       ),
       body: ValueListenableBuilder(
         valueListenable: ItemsService.instance.items,
@@ -51,10 +179,16 @@ class StaffDashboardPage extends StatelessWidget {
                     mainAxisSpacing: 16,
                     childAspectRatio: 1,
                     children: [
-                      _buildStatCard(
-                        '0',
-                        'Borrowed Today',
-                        const Color(0xFFFF8C42),
+                      FutureBuilder<int>(
+                        future: _getBorrowedTodayCount(),
+                        builder: (context, snapshot) {
+                          final borrowedToday = snapshot.data ?? 0;
+                          return _buildStatCard(
+                            '$borrowedToday',
+                            'Borrowed Today',
+                            const Color(0xFFFF8C42),
+                          );
+                        },
                       ),
                       _buildStatCard(
                         '$availableCount',
@@ -66,10 +200,16 @@ class StaffDashboardPage extends StatelessWidget {
                         'Disabled',
                         const Color(0xFFE53935),
                       ),
-                      _buildStatCard(
-                        '0',
-                        'Pending Request',
-                        const Color(0xFF26A69A),
+                      FutureBuilder<int>(
+                        future: _getPendingRequestCount(),
+                        builder: (context, snapshot) {
+                          final pendingCount = snapshot.data ?? 0;
+                          return _buildStatCard(
+                            '$pendingCount',
+                            'Pending Request',
+                            const Color(0xFF26A69A),
+                          );
+                        },
                       ),
                     ],
                   ),
