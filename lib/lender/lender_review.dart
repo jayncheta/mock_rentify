@@ -109,10 +109,41 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
               style: GoogleFonts.poppins(),
             ),
             const SizedBox(height: 10),
+            if (req['reason'] != null &&
+                req['reason'].toString().isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: primaryColor.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Borrower\'s Reason:',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      req['reason'],
+                      style: GoogleFonts.poppins(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             TextField(
               controller: reasonController,
               decoration: const InputDecoration(
-                labelText: 'Reason (optional)',
+                labelText: 'Your response (optional)',
                 border: OutlineInputBorder(),
               ),
               maxLines: 2,
