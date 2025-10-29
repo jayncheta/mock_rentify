@@ -12,18 +12,13 @@ class ProfilePage extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
     final list = prefs.getStringList('user_borrow_history') ?? [];
 
-    // We'll count only Windows laptop entries and make currently renting binary (0/1).
+    // Count across ALL items. Currently renting is the actual count of active approved rentals.
     int currentlyRenting = 0;
     int lateReturns = 0;
     int onTimeReturns = 0;
     int rentHistory = 0;
 
     final df = DateFormat('dd/MM/yy');
-    final today = DateTime.now();
-    final todayDateOnly = DateTime(today.year, today.month, today.day);
-
-    bool hasActiveCurrent =
-        false; // track if any active Windows laptop rental exists
 
     for (final s in list) {
       Map<String, dynamic> r;
@@ -33,11 +28,9 @@ class ProfilePage extends StatelessWidget {
         continue;
       }
 
-      // Filter to Windows laptop only
+      // Basic item structure check
       final itm = r['item'];
       if (itm is! Map<String, dynamic>) continue;
-      final title = (itm['title'] ?? '').toString().toLowerCase();
-      if (!title.contains('windows laptop')) continue;
 
       final status = (r['status'] ?? '').toString();
 
@@ -61,9 +54,13 @@ class ProfilePage extends StatelessWidget {
 
       final isFlaggedLate = (r['lateReturn'] ?? false) == true;
 
-      if (returnedAt != null) {
-        // Count only Windows laptop returns
+      // Rent history should reflect what the user_history page shows:
+      // include records that are Approved (active) or already Returned.
+      if (status == 'Approved' || returnedAt != null) {
         rentHistory += 1;
+      }
+
+      if (returnedAt != null) {
         if (isFlaggedLate ||
             (plannedReturn != null && returnedAt.isAfter(plannedReturn))) {
           lateReturns += 1;
@@ -71,21 +68,14 @@ class ProfilePage extends StatelessWidget {
           onTimeReturns += 1;
         }
       } else {
-        // Not returned yet; consider as active only when approved and not past planned return
+        // Not returned yet; consider as active only when approved
         if (status == 'Approved') {
-          if (plannedReturn == null || !plannedReturn.isBefore(todayDateOnly)) {
-            hasActiveCurrent = true;
-          }
-          // If flagged as late while still active, reflect in late returns counter
-          if (isFlaggedLate) {
-            lateReturns += 1;
-          }
+          currentlyRenting += 1;
         }
       }
     }
 
-    // Binary currently renting: 1 if any active approved Windows laptop rental exists, else 0
-    currentlyRenting = hasActiveCurrent ? 1 : 0;
+    // currentlyRenting already holds the count of active rentals
 
     return {
       'currently': currentlyRenting,
@@ -93,6 +83,27 @@ class ProfilePage extends StatelessWidget {
       'history': rentHistory,
       'ontime': onTimeReturns,
     };
+  }
+
+  Future<bool> _hasActiveLate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? [];
+    for (final s in list) {
+      try {
+        final r = jsonDecode(s) as Map<String, dynamic>;
+        final status = (r['status'] ?? '').toString();
+        final returnedAt = r['returnedAt'];
+        final late = (r['lateReturn'] ?? false) == true;
+        if (status == 'Approved' &&
+            (returnedAt == null || returnedAt.toString().isEmpty) &&
+            late) {
+          return true;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    return false;
   }
 
   @override
@@ -194,6 +205,42 @@ class ProfilePage extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 8),
+            FutureBuilder<bool>(
+              future: _hasActiveLate(),
+              builder: (context, snapshot) {
+                final show = snapshot.data == true;
+                if (!show) return const SizedBox.shrink();
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.redAccent),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You have an item late for return',
+                          style: GoogleFonts.poppins(
+                            color: Colors.red[900],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: 24),
 
             // --- Grid of Stats (live) ---
@@ -220,10 +267,14 @@ class ProfilePage extends StatelessWidget {
                         'Late Returns',
                         const Color(0xFFE53935),
                       ),
-                      _buildStatCard(
-                        '${counts['history']}',
-                        'Rent History',
-                        const Color(0xFF00BFA6),
+                      GestureDetector(
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/user/history'),
+                        child: _buildStatCard(
+                          '${counts['history']}',
+                          'Rent History',
+                          const Color(0xFF00BFA6),
+                        ),
                       ),
                       _buildStatCard(
                         '${counts['ontime']}',
