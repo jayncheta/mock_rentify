@@ -54,22 +54,26 @@ class ProfilePage extends StatelessWidget {
 
       final isFlaggedLate = (r['lateReturn'] ?? false) == true;
 
-      // Rent history should reflect what the user_history page shows:
-      // include records that are Approved (active) or already Returned.
-      if (status == 'Approved' || returnedAt != null) {
-        rentHistory += 1;
-      }
-
       if (returnedAt != null) {
-        if (isFlaggedLate ||
-            (plannedReturn != null && returnedAt.isAfter(plannedReturn))) {
+        // Completed rentals only
+        rentHistory += 1;
+
+        // Determine late strictly by due date vs returnedAt when available.
+        // Fallback: if no plannedReturn provided, treat explicit 'Late Return' status/flag as late.
+        final bool isLateByDate =
+            plannedReturn != null && returnedAt.isAfter(plannedReturn);
+        final bool explicitLate =
+            (r['status']?.toString() == 'Late Return') || isFlaggedLate;
+
+        if (isLateByDate || (plannedReturn == null && explicitLate)) {
           lateReturns += 1;
         } else {
           onTimeReturns += 1;
         }
       } else {
-        // Not returned yet; consider as active only when approved
+        // Active rentals: only contribute to 'Currently Renting' (binary), not late/on-time counters
         if (status == 'Approved') {
+          // Count as currently renting regardless of due date status; do not add to Rent History
           currentlyRenting += 1;
         }
       }

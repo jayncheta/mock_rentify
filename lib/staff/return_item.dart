@@ -4,6 +4,7 @@ import '../browse.dart' show Item;
 import '../services/items_service.dart' show ItemsService;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'add.dart' show AddItemsScreen;
 
 class StaffReturnScreen extends StatefulWidget {
   const StaffReturnScreen({super.key});
@@ -98,13 +99,7 @@ class _StaffReturnScreenState extends State<StaffReturnScreen> {
             ),
           ),
         ),
-        title: Text(
-          'Return Item',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-        ),
+        title: const SizedBox.shrink(),
         actions: [
           TextButton(
             onPressed: () {
@@ -112,6 +107,15 @@ class _StaffReturnScreenState extends State<StaffReturnScreen> {
             },
             child: Text(
               'History',
+              style: GoogleFonts.poppins(color: Colors.black),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, AddItemsScreen.routeName);
+            },
+            child: Text(
+              'Staff',
               style: GoogleFonts.poppins(color: Colors.black),
             ),
           ),
@@ -173,7 +177,17 @@ class _StaffReturnScreenState extends State<StaffReturnScreen> {
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Title between profile icon (in AppBar) and the search bar
+            Text(
+              'Return Item',
+              style: GoogleFonts.poppins(
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
             _buildSearchBar(),
             const SizedBox(height: 16),
             Expanded(child: _buildBorrowedList()),
