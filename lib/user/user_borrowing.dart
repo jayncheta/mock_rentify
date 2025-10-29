@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
-import '../browse.dart' show Item;
+import '../browse.dart' show Item, primaryColor;
 
 class UserBorrowingScreen extends StatelessWidget {
   static const String routeName = '/user/user-borrowing';
@@ -87,7 +87,7 @@ class UserBorrowingScreen extends StatelessWidget {
           children: [
             Center(child: Image.asset(item.imageUrl, height: 180)),
             const SizedBox(height: 15),
-            const Divider(thickness: 1.5, color: Colors.orangeAccent),
+            const Divider(thickness: 1.5, color: primaryColor),
             const SizedBox(height: 20),
             Text(
               item.title,
@@ -126,7 +126,7 @@ class UserBorrowingScreen extends StatelessWidget {
             ElevatedButton(
               onPressed: () => _saveBorrowRequest(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orangeAccent,
+                backgroundColor: primaryColor,
                 minimumSize: const Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
