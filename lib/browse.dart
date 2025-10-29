@@ -160,32 +160,83 @@ class FavoriteItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: ListTile(
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.asset(
-            item.imageUrl,
-            width: 56,
-            height: 56,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-          ),
-        ),
-        title: Text(item.title, style: GoogleFonts.poppins()),
-        subtitle: Text('Favorite', style: GoogleFonts.poppins(fontSize: 12)),
-        trailing: ValueListenableBuilder<Set<String>>(
-          valueListenable: FavoritesRepo.instance.favorites,
-          builder: (context, favs, _) {
-            final isFav = favs.contains(item.id);
-            return IconButton(
-              onPressed: () =>
-                  FavoritesRepo.instance.toggle(item.id, item.title, context),
-              icon: Icon(
-                isFav ? Icons.favorite : Icons.favorite_border,
-                color: isFav ? primaryColor : Colors.grey,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                item.imageUrl,
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
               ),
-            );
-          },
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.title,
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Favorite',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamed(
+                  context,
+                  BorrowRequestScreen.routeName,
+                  arguments: item,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              child: Text(
+                'Rent Again',
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ValueListenableBuilder<Set<String>>(
+              valueListenable: FavoritesRepo.instance.favorites,
+              builder: (context, favs, _) {
+                final isFav = favs.contains(item.id);
+                return IconButton(
+                  onPressed: () => FavoritesRepo.instance.toggle(
+                    item.id,
+                    item.title,
+                    context,
+                  ),
+                  icon: Icon(
+                    isFav ? Icons.favorite : Icons.favorite_border,
+                    color: isFav ? primaryColor : Colors.grey,
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

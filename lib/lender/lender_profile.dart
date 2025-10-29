@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dashboard.dart';
 import 'lender_browse.dart';
 import 'lender_review.dart';
+import 'lender_history.dart';
 
 class LenderProfilePage extends StatelessWidget {
   static const String routeName = '/lender/profile';
@@ -72,9 +73,10 @@ class LenderProfilePage extends StatelessWidget {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: () {
-                                // TODO: Add navigation
-                              },
+                              onPressed: () => Navigator.pushNamed(
+                                context,
+                                LenderHistoryPage.routeName,
+                              ),
                               child: const Text('Lend History'),
                             ),
                           ),

@@ -2,10 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/items_service.dart';
 import 'lender_profile.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class DashboardPage extends StatelessWidget {
   static const String routeName = '/lender/dashboard';
   const DashboardPage({super.key});
+
+  Future<int> _getBorrowedTodayCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
+    final now = DateTime.now();
+    int count = 0;
+    for (final s in list) {
+      try {
+        final rec = jsonDecode(s) as Map<String, dynamic>;
+        final status = (rec['status'] ?? '').toString();
+        if (status != 'Approved') continue;
+        DateTime? when;
+        final approvedAtStr = (rec['approvedAt'] ?? '').toString();
+        if (approvedAtStr.isNotEmpty) {
+          when = DateTime.tryParse(approvedAtStr);
+        }
+        when ??= DateTime.tryParse((rec['createdAt'] ?? '').toString());
+        if (when == null) continue;
+        if (when.year == now.year &&
+            when.month == now.month &&
+            when.day == now.day) {
+          count++;
+        }
+      } catch (_) {
+        // ignore malformed record
+      }
+    }
+    return count;
+  }
+
+  Future<int> _getPendingRequestCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
+    int count = 0;
+    for (final s in list) {
+      try {
+        final rec = jsonDecode(s) as Map<String, dynamic>;
+        final status = (rec['status'] ?? '').toString();
+        if (status == 'Pending') count++;
+      } catch (_) {
+        // ignore malformed record
+      }
+    }
+    return count;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,10 +100,16 @@ class DashboardPage extends StatelessWidget {
                     mainAxisSpacing: 16,
                     childAspectRatio: 1,
                     children: [
-                      _buildStatCard(
-                        '0',
-                        'Borrowed Today',
-                        const Color(0xFFFF8C42),
+                      FutureBuilder<int>(
+                        future: _getBorrowedTodayCount(),
+                        builder: (context, snapshot) {
+                          final borrowedToday = snapshot.data ?? 0;
+                          return _buildStatCard(
+                            '$borrowedToday',
+                            'Borrowed Today',
+                            const Color(0xFFFF8C42),
+                          );
+                        },
                       ),
                       _buildStatCard(
                         '$availableCount',
@@ -68,10 +121,16 @@ class DashboardPage extends StatelessWidget {
                         'Disabled',
                         const Color(0xFFE53935),
                       ),
-                      _buildStatCard(
-                        '0',
-                        'Pending Request',
-                        const Color(0xFF26A69A),
+                      FutureBuilder<int>(
+                        future: _getPendingRequestCount(),
+                        builder: (context, snapshot) {
+                          final pendingCount = snapshot.data ?? 0;
+                          return _buildStatCard(
+                            '$pendingCount',
+                            'Pending Request',
+                            const Color(0xFF26A69A),
+                          );
+                        },
                       ),
                     ],
                   ),

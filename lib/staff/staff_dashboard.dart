@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/items_service.dart';
+import 'add.dart' show AddItemsScreen;
 
 class StaffDashboardPage extends StatelessWidget {
   static const String routeName = '/staff/dashboard';
@@ -81,6 +82,15 @@ class StaffDashboardPage extends StatelessWidget {
             },
             child: Text(
               'History',
+              style: GoogleFonts.poppins(color: Colors.black),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushNamed(context, AddItemsScreen.routeName);
+            },
+            child: Text(
+              'Staff',
               style: GoogleFonts.poppins(color: Colors.black),
             ),
           ),

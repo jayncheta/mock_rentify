@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/items_service.dart' show ItemsService;
+import '../browse.dart' show primaryColor;
 
 class LenderReviewScreen extends StatefulWidget {
   static const String routeName = '/lender/review';
@@ -145,7 +146,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.orangeAccent,
+        backgroundColor: primaryColor,
         elevation: 0,
         title: Text(
           'Pending Borrow Requests',
@@ -206,7 +207,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
                     trailing: ElevatedButton(
                       onPressed: () => _showReviewDialog(index),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orangeAccent,
+                        backgroundColor: primaryColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),

@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/items_service.dart' show ItemsService;
-import '../browse.dart' show Item;
-import 'lender_profile.dart';
-
-const primaryColor = Color(0xFFF96A38);
+import '../browse.dart' show Item, primaryColor;
 
 class LenderBrowseScreen extends StatefulWidget {
   static const String routeName = '/lender/browse';
@@ -23,13 +20,14 @@ class _LenderBrowseScreenState extends State<LenderBrowseScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: primaryColor,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pushNamed(context, LenderProfilePage.routeName);
-          },
+        title: Text(
+          'Lender Browse',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ),
       body: Column(

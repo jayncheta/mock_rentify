@@ -17,6 +17,7 @@ import 'lender/lender_profile.dart';
 import 'lender/dashboard.dart';
 import 'lender/lender_browse.dart';
 import 'lender/lender_review.dart';
+import 'lender/lender_history.dart';
 
 class UserAccount {
   final String username;
@@ -180,6 +181,7 @@ class RentifyApp extends StatelessWidget {
         DashboardPage.routeName: (context) => const DashboardPage(),
         LenderBrowseScreen.routeName: (context) => const LenderBrowseScreen(),
         LenderReviewScreen.routeName: (context) => const LenderReviewScreen(),
+        LenderHistoryPage.routeName: (context) => const LenderHistoryPage(),
 
         BorrowRequestScreen.routeName: (context) {
           final item = ModalRoute.of(context)!.settings.arguments as Item;
