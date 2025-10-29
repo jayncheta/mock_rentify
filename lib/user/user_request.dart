@@ -42,17 +42,17 @@ class _UserRequestPageState extends State<UserRequestPage> {
     final List<Map<String, dynamic>> base = _selectedTab == 'All'
         ? _borrowHistory
         : _borrowHistory
-              .where((item) => item['status'] == _selectedTab)
+              .where(
+                (item) => (item['status'] ?? '').toString() == _selectedTab,
+              )
               .toList();
 
-    // Then filter UI to show only Windows laptop entries
+    // Exclude items that are already returned (returnedAt set)
+    // and include ALL item types (no Windows-only filter), so active MacBook shows.
     return base.where((entry) {
-      final itm = entry['item'];
-      if (itm is Map<String, dynamic>) {
-        final t = (itm['title'] ?? '').toString().toLowerCase();
-        return t.contains('windows laptop');
-      }
-      return false;
+      final returnedAt = entry['returnedAt'];
+      final isReturned = returnedAt != null && returnedAt.toString().isNotEmpty;
+      return !isReturned;
     }).toList();
   }
 
@@ -62,18 +62,10 @@ class _UserRequestPageState extends State<UserRequestPage> {
         final status = (entry['status'] ?? '').toString();
         final late = (entry['lateReturn'] ?? false) == true;
         final returnedAt = entry['returnedAt'];
-        final itm = entry['item'];
-        // Keep consistent with Windows laptop-only views
-        if (itm is Map<String, dynamic>) {
-          final t = (itm['title'] ?? '').toString().toLowerCase();
-          final isWinLaptop = t.contains('windows laptop');
-          if (isWinLaptop &&
-              status == 'Approved' &&
-              late == true &&
-              (returnedAt == null || (returnedAt as String).isEmpty)) {
-            return true;
-          }
-        }
+        final isActive =
+            status == 'Approved' &&
+            (returnedAt == null || returnedAt.toString().isEmpty);
+        if (isActive && late) return true;
       } catch (_) {
         // ignore malformed
       }
@@ -269,9 +261,21 @@ class _UserRequestPageState extends State<UserRequestPage> {
                     itemBuilder: (context, index) {
                       final itemData = _filteredHistory[index];
                       final item = itemData['item'];
-                      final status = itemData['status'] ?? 'Pending';
+                      final status = (itemData['status'] ?? 'Pending')
+                          .toString();
                       final reason = itemData['reason'] ?? '';
                       final color = _statusColor(status);
+                      final returnedAt = itemData['returnedAt'];
+                      final late = (itemData['lateReturn'] ?? false) == true;
+                      final isActive =
+                          status == 'Approved' &&
+                          (returnedAt == null || returnedAt.toString().isEmpty);
+                      final String displayStatus = (isActive && late)
+                          ? 'Late Return'
+                          : status;
+                      final Color displayColor = (isActive && late)
+                          ? Colors.red
+                          : color;
 
                       return Container(
                         margin: const EdgeInsets.symmetric(
@@ -356,41 +360,18 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                         width: 12,
                                         height: 12,
                                         decoration: BoxDecoration(
-                                          color: color,
+                                          color: displayColor,
                                           shape: BoxShape.circle,
                                         ),
                                       ),
                                       const SizedBox(width: 6),
                                       Text(
-                                        status,
+                                        displayStatus,
                                         style: GoogleFonts.poppins(
                                           fontWeight: FontWeight.w600,
-                                          color: color,
+                                          color: displayColor,
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      if ((itemData['lateReturn'] ?? false) ==
-                                          true)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red,
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'Late Return',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
                                     ],
                                   ),
                                   if (status == 'Approved')

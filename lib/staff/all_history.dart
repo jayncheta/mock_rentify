@@ -40,18 +40,49 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
         final rec = jsonDecode(s) as Map<String, dynamic>;
         final status = (rec['status'] ?? '').toString();
         final item = rec['item'];
+        final returnedAt = rec['returnedAt'];
 
-        // Only include approved Windows laptop records
-        if (status == 'Approved' && item is Map<String, dynamic>) {
-          final title = (item['title'] ?? '').toString().toLowerCase();
-          if (title.contains('windows') && title.contains('laptop')) {
-            history.add(rec);
-          }
+        // Include any record that has actually been rented:
+        // - Active rentals: status Approved or Late Return (returnedAt is null)
+        // - Completed rentals: any record with returnedAt set
+        final bool isActiveRental =
+            (status == 'Approved' || status == 'Late Return') &&
+            (returnedAt == null ||
+                (returnedAt is String && returnedAt.isEmpty));
+        final bool isCompletedRental =
+            returnedAt != null &&
+            (!(returnedAt is String) || returnedAt.isNotEmpty);
+
+        if (item is Map<String, dynamic> &&
+            (isActiveRental || isCompletedRental)) {
+          history.add(rec);
         }
       } catch (_) {
         // ignore bad record
       }
     }
+
+    // Sort by most recent activity: prefer approvedAt, then borrowDate, then insertion order
+    DateTime? parseDate(dynamic v) {
+      if (v == null) return null;
+      if (v is DateTime) return v;
+      final s = v.toString();
+      try {
+        return DateTime.parse(s);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    history.sort((a, b) {
+      final aApproved = parseDate(a['approvedAt']);
+      final bApproved = parseDate(b['approvedAt']);
+      final aBorrow = aApproved ?? parseDate(a['borrowDate']);
+      final bBorrow = bApproved ?? parseDate(b['borrowDate']);
+      final aTime = aBorrow?.millisecondsSinceEpoch ?? 0;
+      final bTime = bBorrow?.millisecondsSinceEpoch ?? 0;
+      return bTime.compareTo(aTime);
+    });
 
     if (mounted) {
       setState(() {
@@ -200,7 +231,7 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                       ? Center(
                           child: Text(
                             _searchController.text.trim().isEmpty
-                                ? 'No approved borrow history yet.'
+                                ? 'No rental history yet.'
                                 : 'No matching items found.',
                             style: GoogleFonts.poppins(
                               fontSize: 16,
@@ -220,6 +251,29 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                             final borrowDate = rec['borrowDate'] ?? '';
                             final returnDate = rec['returnDate'] ?? '';
                             final returnedAt = rec['returnedAt'];
+                            final lateReturn = rec['lateReturn'] ?? false;
+
+                            // Determine status text and color
+                            String statusText;
+                            Color statusColor;
+                            if (returnedAt != null) {
+                              if (lateReturn == true) {
+                                statusText = 'Returned as Late';
+                                statusColor = Colors.red;
+                              } else {
+                                statusText = 'Returned';
+                                statusColor = Colors.green;
+                              }
+                            } else {
+                              final isLateActive =
+                                  (rec['status']?.toString() == 'Late Return');
+                              statusText = isLateActive
+                                  ? 'Late Return'
+                                  : 'Active';
+                              statusColor = isLateActive
+                                  ? Colors.red
+                                  : Colors.orange;
+                            }
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -249,7 +303,7 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                                   'Borrower: $borrowerName\n'
                                   'Borrowed: $borrowDate\n'
                                   'Expected Return: $returnDate\n'
-                                  '${returnedAt != null ? 'Returned: ${returnedAt.toString().split('T')[0]}' : 'Status: Active'}',
+                                  '${returnedAt != null ? 'Returned: ${returnedAt.toString().split('T')[0]}' : 'Status: $statusText'}',
                                   style: GoogleFonts.poppins(fontSize: 12),
                                 ),
                                 isThreeLine: true,
@@ -259,11 +313,11 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.green,
+                                    color: statusColor,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    returnedAt != null ? 'Returned' : 'Active',
+                                    statusText,
                                     style: GoogleFonts.poppins(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
