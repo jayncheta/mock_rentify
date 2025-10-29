@@ -56,6 +56,31 @@ class _UserRequestPageState extends State<UserRequestPage> {
     }).toList();
   }
 
+  bool get _hasActiveLate {
+    for (final entry in _borrowHistory) {
+      try {
+        final status = (entry['status'] ?? '').toString();
+        final late = (entry['lateReturn'] ?? false) == true;
+        final returnedAt = entry['returnedAt'];
+        final itm = entry['item'];
+        // Keep consistent with Windows laptop-only views
+        if (itm is Map<String, dynamic>) {
+          final t = (itm['title'] ?? '').toString().toLowerCase();
+          final isWinLaptop = t.contains('windows laptop');
+          if (isWinLaptop &&
+              status == 'Approved' &&
+              late == true &&
+              (returnedAt == null || (returnedAt as String).isEmpty)) {
+            return true;
+          }
+        }
+      } catch (_) {
+        // ignore malformed
+      }
+    }
+    return false;
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'Approved':
@@ -195,6 +220,37 @@ class _UserRequestPageState extends State<UserRequestPage> {
             ),
           ),
 
+          // Late Return banner
+          if (_hasActiveLate)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE), // light red
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.6)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'You have a late item to return',
+                        style: GoogleFonts.poppins(
+                          color: Colors.red[900],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // Borrow List
           Expanded(
             child: _filteredHistory.isEmpty
@@ -312,11 +368,65 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                           color: color,
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
+                                      if ((itemData['lateReturn'] ?? false) ==
+                                          true)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Late Return',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                   if (status == 'Approved')
                                     ElevatedButton(
-                                      onPressed: () {},
+                                      onPressed: () {
+                                        final pickUpTime =
+                                            (itemData['pickUpTime'] ?? '')
+                                                .toString();
+                                        showDialog<void>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text(
+                                              'Pick-up Info',
+                                              style: GoogleFonts.poppins(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            content: Text(
+                                              pickUpTime.isNotEmpty
+                                                  ? 'Pick-up time: $pickUpTime'
+                                                  : 'Pick-up time not set.',
+                                              style: GoogleFonts.poppins(),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.of(context).pop(),
+                                                child: Text(
+                                                  'Close',
+                                                  style: GoogleFonts.poppins(),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.green,
                                         shape: RoundedRectangleBorder(

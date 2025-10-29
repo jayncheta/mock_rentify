@@ -240,6 +240,46 @@ class _ReturnCard extends StatefulWidget {
 class _ReturnCardState extends State<_ReturnCard> {
   bool isChecked = false;
 
+  Future<Map<String, String>> _loadTimes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
+    String pickUpTime = '';
+    String returnTime = '';
+    String borrowerName = '';
+    String returnDate = '';
+    String approvedBy = '';
+    for (int i = list.length - 1; i >= 0; i--) {
+      try {
+        final Map<String, dynamic> rec = jsonDecode(list[i]);
+        final item = rec['item'];
+        if (item is Map<String, dynamic>) {
+          final id = (item['id'] ?? '').toString();
+          final status = (rec['status'] ?? '').toString();
+          final returnedAt = rec['returnedAt'];
+          if (id == widget.item.id &&
+              status == 'Approved' &&
+              (returnedAt == null || (returnedAt as String).isEmpty)) {
+            pickUpTime = (rec['pickUpTime'] ?? '').toString();
+            returnTime = (rec['returnTime'] ?? '').toString();
+            borrowerName = (rec['borrowerName'] ?? '').toString();
+            returnDate = (rec['returnDate'] ?? '').toString();
+            approvedBy = (rec['approvedBy'] ?? '').toString();
+            break;
+          }
+        }
+      } catch (_) {
+        // ignore malformed entries
+      }
+    }
+    return {
+      'pickUpTime': pickUpTime,
+      'returnTime': returnTime,
+      'borrowerName': borrowerName,
+      'returnDate': returnDate,
+      'approvedBy': approvedBy,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -259,13 +299,54 @@ class _ReturnCardState extends State<_ReturnCard> {
             ),
           ),
           const SizedBox(height: 10),
+          // Borrower name above Item
+          FutureBuilder<Map<String, String>>(
+            future: _loadTimes(),
+            builder: (context, snapshot) {
+              final borrowerName = snapshot.data?['borrowerName'] ?? '';
+              return _buildDetail(
+                'Borrower: '
+                '${borrowerName.isNotEmpty ? borrowerName : 'Unknown'}',
+              );
+            },
+          ),
           _buildDetail('Item: ${widget.item.title}'),
           _buildDetail('Item ID: ${widget.item.id}'),
+          FutureBuilder<Map<String, String>>(
+            future: _loadTimes(),
+            builder: (context, snapshot) {
+              final returnDate = snapshot.data?['returnDate'] ?? '';
+              final pickUpTime = snapshot.data?['pickUpTime'] ?? '';
+              final returnTime = snapshot.data?['returnTime'] ?? '';
+              final approvedBy = snapshot.data?['approvedBy'] ?? '';
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetail(
+                    'Return date: '
+                    '${returnDate.isNotEmpty ? returnDate : 'Not set'}',
+                  ),
+                  _buildDetail(
+                    'Pick-up time: '
+                    '${pickUpTime.isNotEmpty ? pickUpTime : 'Not set'}',
+                  ),
+                  _buildDetail(
+                    'Return time: '
+                    '${returnTime.isNotEmpty ? returnTime : 'Not set'}',
+                  ),
+                  _buildDetail(
+                    'Approved by: '
+                    '${approvedBy.isNotEmpty ? approvedBy : 'Lender'}',
+                  ),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
               Checkbox(
-                activeColor: const Color(0xFF00C853),
+                activeColor: Colors.green,
                 value: isChecked,
                 onChanged: (value) =>
                     setState(() => isChecked = value ?? false),
@@ -277,27 +358,131 @@ class _ReturnCardState extends State<_ReturnCard> {
             ],
           ),
           const SizedBox(height: 8),
-          Center(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00C853),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 10,
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 10,
+                    ),
+                  ),
+                  onPressed: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(
+                          'Flag as Late Return',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        content: Text(
+                          'Flag this item as late return? Action needs to be taken after flagging this item as Late Return',
+                          style: GoogleFonts.poppins(),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text('No', style: GoogleFonts.poppins()),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              // Persist 'lateReturn' flag on the latest approved, not-returned record for this item
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              final list =
+                                  prefs.getStringList('user_borrow_history') ??
+                                  <String>[];
+                              bool updated = false;
+                              for (int i = list.length - 1; i >= 0; i--) {
+                                try {
+                                  final Map<String, dynamic> rec = jsonDecode(
+                                    list[i],
+                                  );
+                                  final recItem = rec['item'];
+                                  if (recItem is Map<String, dynamic>) {
+                                    final id = (recItem['id'] ?? '').toString();
+                                    final status = (rec['status'] ?? '')
+                                        .toString();
+                                    final returnedAt = rec['returnedAt'];
+                                    if (id == widget.item.id &&
+                                        status == 'Approved' &&
+                                        (returnedAt == null ||
+                                            (returnedAt as String).isEmpty)) {
+                                      rec['lateReturn'] = true;
+                                      rec['lateFlaggedAt'] = DateTime.now()
+                                          .toIso8601String();
+                                      list[i] = jsonEncode(rec);
+                                      updated = true;
+                                      break;
+                                    }
+                                  }
+                                } catch (_) {
+                                  // ignore
+                                }
+                              }
+                              if (updated) {
+                                await prefs.setStringList(
+                                  'user_borrow_history',
+                                  list,
+                                );
+                              }
+
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Item flagged as late return'),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              'Yes',
+                              style: GoogleFonts.poppins(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'Flag as Late',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
-              onPressed: isChecked ? widget.onConfirm : null,
-              child: Text(
-                'Confirm Return (Set Status to Available)',
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 10,
+                    ),
+                  ),
+                  onPressed: isChecked ? widget.onConfirm : null,
+                  child: Text(
+                    'Confirm Return (Set Status to Available)',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ],
       ),

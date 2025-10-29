@@ -59,10 +59,13 @@ class ProfilePage extends StatelessWidget {
         } catch (_) {}
       }
 
+      final isFlaggedLate = (r['lateReturn'] ?? false) == true;
+
       if (returnedAt != null) {
         // Count only Windows laptop returns
         rentHistory += 1;
-        if (plannedReturn != null && returnedAt.isAfter(plannedReturn)) {
+        if (isFlaggedLate ||
+            (plannedReturn != null && returnedAt.isAfter(plannedReturn))) {
           lateReturns += 1;
         } else {
           onTimeReturns += 1;
@@ -72,6 +75,10 @@ class ProfilePage extends StatelessWidget {
         if (status == 'Approved') {
           if (plannedReturn == null || !plannedReturn.isBefore(todayDateOnly)) {
             hasActiveCurrent = true;
+          }
+          // If flagged as late while still active, reflect in late returns counter
+          if (isFlaggedLate) {
+            lateReturns += 1;
           }
         }
       }
@@ -121,10 +128,10 @@ class ProfilePage extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                Navigator.pushNamed(context, '/user/history');
+                Navigator.pushNamed(context, '/user/request');
               },
               child: Text(
-                'History',
+                'Request',
                 style: GoogleFonts.poppins(color: Colors.black),
               ),
             ),

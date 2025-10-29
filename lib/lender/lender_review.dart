@@ -54,6 +54,8 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
         req['reason'] = reason;
         if (status == 'Approved') {
           req['approvedAt'] = DateTime.now().toIso8601String();
+          // TODO: Replace with actual approver identity when auth is added
+          req['approvedBy'] = 'Lender';
           approvedItemId = (req['item']['id'] ?? '').toString();
         }
         break;
