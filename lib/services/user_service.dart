@@ -2,29 +2,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 
-/// Backend-ready service for all user borrow operations
-/// TODO: Replace SharedPreferences implementation with HTTP API calls
+/// Service for all user borrow operations - Connected to backend
 class UserBorrowService {
   static final UserBorrowService _instance = UserBorrowService._internal();
   factory UserBorrowService() => _instance;
   UserBorrowService._internal();
 
-  // TODO: Replace with your backend API base URL
-  // static const String _baseUrl = 'https://api.yourdomain.com';
+  // Backend API base URL - Your server IP address
+  static const String _baseUrl = 'http://172.25.7.206:3000';
 
   /// Create a new borrow request
-  /// TODO: Replace with API call: POST /api/borrow-requests
-  /// Body: {
-  ///   "userId": "...",
-  ///   "itemId": "...",
-  ///   "borrowDate": "...",
-  ///   "returnDate": "...",
-  ///   "pickUpTime": "...",
-  ///   "returnTime": "...",
-  ///   "reason": "..."
-  /// }
-  /// Response: { "id": "...", "status": "Pending", "createdAt": "..." }
+  /// Connects to: POST /borrow-request
   Future<bool> createBorrowRequest({
     required String userId,
     required Map<String, dynamic> item,
@@ -36,32 +26,163 @@ class UserBorrowService {
     required String reason,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = prefs.getStringList('user_borrow_history') ?? [];
+      final itemId = item['id']?.toString() ?? '';
+      final lenderId = item['lenderId']?.toString() ?? '1'; // Default lender ID
 
-      final newRequest = {
-        'id': DateTime.now().millisecondsSinceEpoch
-            .toString(), // TODO: Backend will generate ID
-        'userId': userId, // TODO: Get from auth service
-        'item': item,
-        'borrowerName': borrowerName,
-        'borrowDate': borrowDate,
-        'pickUpTime': pickUpTime,
-        'returnDate': returnDate,
-        'returnTime': returnTime,
-        'reason': reason,
-        'status': 'Pending',
-        'createdAt': DateTime.now().toIso8601String(),
-      };
+      final response = await http.post(
+        Uri.parse('$_baseUrl/borrow-request'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'item_id': itemId,
+          'borrower_id': userId,
+          'lender_id': lenderId,
+          'borrower_reason': reason,
+        }),
+      );
 
-      data.add(jsonEncode(newRequest));
-      await prefs.setStringList('user_borrow_history', data);
-
-      debugPrint('✅ Borrow request created: ${newRequest['id']}');
-      return true;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        debugPrint('✅ Borrow request created: ${data['request_id']}');
+        return true;
+      } else {
+        debugPrint('❌ Error creating borrow request: ${response.statusCode}');
+        return false;
+      }
     } catch (e) {
       debugPrint('❌ Error creating borrow request: $e');
       return false;
+    }
+  }
+
+  /// Login user
+  /// Connects to: POST /login
+  Future<Map<String, dynamic>?> login({
+    required String username,
+    required String password,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      );
+
+      if (response.statusCode == 200) {
+        final userData = jsonDecode(response.body) as Map<String, dynamic>;
+
+        // Store user info locally
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('current_user', jsonEncode(userData));
+
+        debugPrint('✅ Login successful: ${userData['username']}');
+        return userData;
+      } else if (response.statusCode == 403) {
+        debugPrint('❌ Invalid login credentials');
+        return null;
+      } else {
+        debugPrint('❌ Login error: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Error during login: $e');
+      return null;
+    }
+  }
+
+  /// Get current logged-in user from local storage
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userStr = prefs.getString('current_user');
+      if (userStr != null) {
+        return jsonDecode(userStr) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error getting current user: $e');
+      return null;
+    }
+  }
+
+  /// Get user info by ID
+  /// Connects to: GET /users/:id
+  Future<Map<String, dynamic>?> getUserInfo(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/users/$userId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final userData = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('✅ User info retrieved: ${userData['username']}');
+        return userData;
+      } else if (response.statusCode == 404) {
+        debugPrint('❌ User not found');
+        return null;
+      } else {
+        debugPrint('❌ Error getting user info: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting user info: $e');
+      return null;
+    }
+  }
+
+  /// Logout user
+  Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('current_user');
+      debugPrint('✅ User logged out');
+    } catch (e) {
+      debugPrint('❌ Error during logout: $e');
+    }
+  }
+
+  /// Sign up new user
+  /// Connects to: POST /signup
+  Future<Map<String, dynamic>?> signup({
+    required String username,
+    required String email,
+    required String password,
+    String? fullName,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/signup'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username,
+          'email': email,
+          'password': password,
+          'full_name': fullName ?? username,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final userData = jsonDecode(response.body) as Map<String, dynamic>;
+
+        // Store user info locally
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('current_user', jsonEncode(userData));
+
+        debugPrint('✅ Signup successful: ${userData['username']}');
+        return userData;
+      } else if (response.statusCode == 409) {
+        debugPrint('❌ Username or email already exists');
+        return null;
+      } else if (response.statusCode == 400) {
+        debugPrint('❌ Missing required fields');
+        return null;
+      } else {
+        debugPrint('❌ Signup error: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Error during signup: $e');
+      return null;
     }
   }
 
@@ -301,54 +422,6 @@ class UserBorrowService {
     } catch (e) {
       debugPrint('❌ Error loading user history: $e');
       return [];
-    }
-  }
-
-  /// Update request status (for testing - normally done by lender/staff)
-  /// TODO: This will be handled by backend, not client-side
-  Future<bool> _updateRequestStatus({
-    required String requestId,
-    required String status,
-    Map<String, dynamic>? additionalData,
-  }) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = prefs.getStringList('user_borrow_history') ?? [];
-      final allRequests = data.map((e) => jsonDecode(e)).toList();
-
-      final request = allRequests.firstWhere(
-        (req) => req['id'] == requestId,
-        orElse: () => <String, dynamic>{},
-      );
-
-      if (request.isEmpty) return false;
-
-      request['status'] = status;
-      if (additionalData != null) {
-        request.addAll(additionalData);
-      }
-
-      await prefs.setStringList(
-        'user_borrow_history',
-        allRequests.map((e) => jsonEncode(e)).toList(),
-      );
-
-      return true;
-    } catch (e) {
-      debugPrint('❌ Error updating request status: $e');
-      return false;
-    }
-  }
-
-  /// Clear all local data (for testing/development)
-  /// TODO: Remove in production or use for logout
-  Future<void> clearAllData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_borrow_history');
-      debugPrint('✅ All borrow data cleared');
-    } catch (e) {
-      debugPrint('❌ Error clearing data: $e');
     }
   }
 }

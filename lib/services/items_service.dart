@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ItemsService {
   ItemsService._();
@@ -12,9 +14,79 @@ class ItemsService {
   // Observable list of items
   final ValueNotifier<List<Item>> items = ValueNotifier<List<Item>>([]);
 
+  // Backend API base URL
+  static const String _baseUrl = 'http://172.25.7.206:3000';
+
   // --- Persistence keys ---
   static const String _disabledIdsKey = 'disabled_item_ids';
   static const String _borrowedIdsKey = 'borrowed_item_ids';
+
+  /// Fetch items from backend database
+  Future<bool> fetchItemsFromBackend() async {
+    try {
+      debugPrint('🔄 Fetching items from backend...');
+      final response = await http.get(
+        Uri.parse('$_baseUrl/items?includeDisabled=true'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        debugPrint('✅ Fetched ${data.length} items from database');
+
+        final List<Item> fetchedItems = data.map((item) {
+          return Item(
+            id: item['item_id']?.toString() ?? item['id']?.toString() ?? '',
+            title:
+                item['item_name']?.toString() ??
+                item['title']?.toString() ??
+                'Unknown',
+            imageUrl: _mapItemToImage(item['item_name']?.toString() ?? ''),
+            statusColor: item['availability_status']?.toString() ?? 'Available',
+            description: item['description']?.toString() ?? '',
+            isDisabled:
+                item['availability_status']?.toString().toLowerCase() ==
+                'unavailable',
+            isBorrowed: false, // Will be updated from local flags
+          );
+        }).toList();
+
+        items.value = fetchedItems;
+
+        // Apply saved disabled and borrowed flags
+        await loadDisabledFlags();
+        await loadBorrowedFlags();
+
+        return true;
+      } else {
+        debugPrint('❌ Error fetching items: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching items from backend: $e');
+      return false;
+    }
+  }
+
+  /// Map item name to local asset image
+  String _mapItemToImage(String itemName) {
+    final name = itemName.toLowerCase();
+
+    if (name.contains('ipad') || name.contains('tablet')) {
+      return 'assets/images/ipad.png';
+    } else if (name.contains('macbook') || name.contains('mac')) {
+      return 'assets/images/macbook.png';
+    } else if (name.contains('windows') ||
+        name.contains('laptop') ||
+        name.contains('pc')) {
+      return 'assets/images/windows_laptop.png';
+    } else if (name.contains('mic') || name.contains('microphone')) {
+      return 'assets/images/microphone.png';
+    }
+
+    // Default fallback
+    return 'assets/images/ipad.png';
+  }
 
   // Load disabled flags from persistent storage and apply to current items
   Future<void> loadDisabledFlags() async {

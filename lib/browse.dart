@@ -407,7 +407,8 @@ class BrowseScreen extends StatefulWidget {
 class _BrowseScreenState extends State<BrowseScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  bool _initialized = false;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -416,89 +417,25 @@ class _BrowseScreenState extends State<BrowseScreen> {
     ItemsService.instance.loadDisabledFlags();
     ItemsService.instance.loadBorrowedFlags();
 
-    if (!_initialized && ItemsService.instance.items.value.isEmpty) {
-      _initialized = true;
-      final List<Item> initialItems = [
-        Item(
-          id: 'ipad1',
-          title: 'ipad1',
-          imageUrl: 'assets/images/ipad.png',
-          statusColor: 'Unvailable',
-          isDisabled: true,
-        ),
-        Item(
-          id: 'ipad2',
-          title: 'ipad2',
-          imageUrl: 'assets/images/ipad.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'macbook1',
-          title: 'macbook1',
-          imageUrl: 'assets/images/macbook.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'macbook2',
-          title: 'macbook2',
-          imageUrl: 'assets/images/macbook.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'windowslaptop1',
-          title: 'windows laptop1',
-          imageUrl: 'assets/images/windows_laptop.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'windowslaptop2',
-          title: 'windows laptop2',
-          imageUrl: 'assets/images/windows_laptop.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'windowslaptop3',
-          title: 'windows laptop3',
-          imageUrl: 'assets/images/windows_laptop.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'microphone1',
-          title: 'Microphone1',
-          imageUrl: 'assets/images/microphone.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'microphone2',
-          title: 'Microphone2',
-          imageUrl: 'assets/images/microphone.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'microphone3',
-          title: 'Microphone3',
-          imageUrl: 'assets/images/microphone.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'microphone4',
-          title: 'Microphone4',
-          imageUrl: 'assets/images/microphone.png',
-          statusColor: 'Available',
-        ),
-        Item(
-          id: 'microphone5',
-          title: 'Microphone5',
-          imageUrl: 'assets/images/microphone.png',
-          statusColor: 'Available',
-        ),
-      ];
-      ItemsService.instance.items.value = initialItems;
-      // Apply any saved disabled flags to the seeded items
-      ItemsService.instance.loadDisabledFlags();
-      // Apply any saved borrowed flags to the seeded items
-      ItemsService.instance.loadBorrowedFlags();
-    }
+    // Fetch items from backend instead of using hardcoded data
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final success = await ItemsService.instance.fetchItemsFromBackend();
+
+    setState(() {
+      _isLoading = false;
+      if (!success) {
+        _errorMessage =
+            'Could not load items from server. Please check your connection.';
+      }
+    });
   }
 
   @override
@@ -590,21 +527,74 @@ class _BrowseScreenState extends State<BrowseScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     const SizedBox(height: 20),
-                    TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search items',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+
+                    // Search field with refresh button
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'Search items',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onChanged: (query) {
+                              setState(() {
+                                _searchQuery = query.trim().toLowerCase();
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.refresh, color: primaryColor),
+                          onPressed: _isLoading ? null : _loadItems,
+                          tooltip: 'Refresh items',
+                        ),
+                      ],
+                    ),
+
+                    // Loading indicator
+                    if (_isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Center(
+                          child: CircularProgressIndicator(color: primaryColor),
                         ),
                       ),
-                      onChanged: (query) {
-                        setState(() {
-                          _searchQuery = query.trim().toLowerCase();
-                        });
-                      },
-                    ),
+
+                    // Error message
+                    if (_errorMessage != null && !_isLoading)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Card(
+                          color: Colors.red[50],
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.red,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.red[900],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
                     const SizedBox(height: 24),
 
                     // Favorites Section

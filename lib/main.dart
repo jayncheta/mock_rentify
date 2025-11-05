@@ -18,6 +18,7 @@ import 'lender/dashboard.dart';
 import 'lender/lender_browse.dart';
 import 'lender/lender_review.dart';
 import 'lender/lender_history.dart';
+import 'services/user_service.dart';
 
 class UserAccount {
   final String username;
@@ -269,8 +270,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _rememberMe = false;
+  bool _isLoading = false;
 
-  void _login() {
+  Future<void> _login() async {
     final enteredUsername = _usernameController.text.trim();
     final enteredPassword = _passwordController.text;
 
@@ -283,29 +285,59 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final UserAccount foundAccount = validTestAccounts.firstWhere(
-      (account) =>
-          account.username == enteredUsername &&
-          account.password == enteredPassword,
-      orElse: () => const UserAccount('', '', ''),
-    );
+    // Show loading state
+    setState(() {
+      _isLoading = true;
+    });
 
-    if (foundAccount.username.isNotEmpty) {
-      if (foundAccount.role.toLowerCase() == 'staff') {
-        Navigator.pushReplacementNamed(context, AddItemsScreen.routeName);
-      } else if (foundAccount.role.toLowerCase() == 'lender') {
-        Navigator.pushReplacementNamed(context, LenderProfilePage.routeName);
-      } else {
-        Navigator.pushReplacementNamed(context, BrowseScreen.routeName);
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Welcome, ${foundAccount.username}!')),
+    try {
+      // Call backend API
+      final userData = await UserBorrowService().login(
+        username: enteredUsername,
+        password: enteredPassword,
       );
-    } else {
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (userData != null) {
+        // Login successful
+        final role = userData['role']?.toString().toLowerCase() ?? '';
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Welcome, ${userData['username']}!')),
+        );
+
+        // Navigate based on role
+        if (role == 'staff') {
+          Navigator.pushReplacementNamed(context, AddItemsScreen.routeName);
+        } else if (role == 'lender') {
+          Navigator.pushReplacementNamed(context, LenderProfilePage.routeName);
+        } else {
+          Navigator.pushReplacementNamed(context, BrowseScreen.routeName);
+        }
+      } else {
+        // Login failed
+        if (!mounted) return;
+        _showAlertDialog(
+          context,
+          'Login Failed',
+          'Invalid username or password. Please check your credentials and try again.',
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (!mounted) return;
       _showAlertDialog(
         context,
-        'Login Failed',
-        'Invalid username or password. Please try again.',
+        'Connection Error',
+        'Could not connect to server. Please make sure the backend is running at http://172.25.7.206:3000',
       );
     }
   }
@@ -382,7 +414,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               const SizedBox(height: 30),
-              ElevatedButton(onPressed: _login, child: const Text('Sign in')),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _login,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text('Sign in'),
+              ),
               const SizedBox(height: 40),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -418,7 +464,128 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   bool _agreeTerms = false;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSignup() async {
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    // Validation
+    if (username.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      _showAlertDialog(context, 'Missing Fields', 'Please fill in all fields.');
+      return;
+    }
+
+    if (!email.contains('@')) {
+      _showAlertDialog(
+        context,
+        'Invalid Email',
+        'Please enter a valid email address.',
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showAlertDialog(
+        context,
+        'Password Mismatch',
+        'Passwords do not match. Please try again.',
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      _showAlertDialog(
+        context,
+        'Weak Password',
+        'Password must be at least 6 characters long.',
+      );
+      return;
+    }
+
+    if (!_agreeTerms) {
+      _showAlertDialog(
+        context,
+        'Terms Required',
+        'Please agree to the terms and conditions.',
+      );
+      return;
+    }
+
+    // Show loading
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Call backend API
+      final userData = await UserBorrowService().signup(
+        username: username,
+        email: email,
+        password: password,
+        fullName: username,
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (userData != null) {
+        // Signup successful
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Welcome, ${userData['username']}! Account created successfully.',
+            ),
+          ),
+        );
+
+        // Navigate to browse screen (default user role)
+        Navigator.pushReplacementNamed(context, BrowseScreen.routeName);
+      } else {
+        // Signup failed
+        if (!mounted) return;
+        _showAlertDialog(
+          context,
+          'Signup Failed',
+          'Username or email already exists. Please try different credentials.',
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (!mounted) return;
+      _showAlertDialog(
+        context,
+        'Connection Error',
+        'Could not connect to server. Please make sure the backend is running at http://172.25.7.206:3000',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -441,24 +608,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 40),
               TextFormField(
+                controller: _usernameController,
                 decoration: const InputDecoration(labelText: 'Username'),
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 20),
               TextFormField(
+                controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(labelText: 'Email'),
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 20),
               TextFormField(
+                controller: _passwordController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Password'),
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 20),
               TextFormField(
+                controller: _confirmPasswordController,
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'Confirm Password',
                 ),
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _agreeTerms ? _handleSignup() : null,
               ),
               const SizedBox(height: 20),
               Row(
@@ -475,20 +651,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 30),
               ElevatedButton(
-                onPressed: _agreeTerms
-                    ? () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Registration logic executed!'),
-                        ),
-                      )
-                    : null,
-                style: _agreeTerms
+                onPressed: (_agreeTerms && !_isLoading) ? _handleSignup : null,
+                style: (_agreeTerms && !_isLoading)
                     ? null
                     : ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[300],
                         foregroundColor: Colors.grey[600],
                       ),
-                child: const Text('Register'),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text('Register'),
               ),
               const SizedBox(height: 40),
               Row(
