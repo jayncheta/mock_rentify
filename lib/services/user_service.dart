@@ -11,7 +11,7 @@ class UserBorrowService {
   UserBorrowService._internal();
 
   // Backend API base URL - Your server IP address
-  static const String _baseUrl = 'http://172.25.7.206:3000';
+  static const String _baseUrl = 'http://172.25.202.28:3000';
 
   /// Create a new borrow request
   /// Connects to: POST /borrow-request
@@ -187,7 +187,6 @@ class UserBorrowService {
   }
 
   /// Get all borrow requests for a user
-  /// TODO: Replace with API call: GET /api/users/{userId}/borrow-requests
   /// Query params: ?status=Pending|Approved|Rejected&includeReturned=true
   Future<List<Map<String, dynamic>>> getUserBorrowRequests({
     String? userId,
@@ -225,7 +224,6 @@ class UserBorrowService {
   }
 
   /// Get user statistics
-  /// TODO: Replace with API call: GET /api/users/{userId}/borrow-stats
   /// Response: {
   ///   "currentlyRenting": 2,
   ///   "lateReturns": 1,
@@ -309,7 +307,6 @@ class UserBorrowService {
   }
 
   /// Check if user has any active late returns
-  /// TODO: Replace with API call: GET /api/users/{userId}/has-active-late
   Future<bool> hasActiveLateReturn({String? userId}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -340,7 +337,6 @@ class UserBorrowService {
   }
 
   /// Cancel a pending borrow request
-  /// TODO: Replace with API call: DELETE /api/borrow-requests/{requestId}
   /// or PATCH /api/borrow-requests/{requestId} with status: "Cancelled"
   Future<bool> cancelBorrowRequest({
     required String requestId,
@@ -380,7 +376,6 @@ class UserBorrowService {
   }
 
   /// Get borrow history (completed rentals only)
-  /// TODO: Replace with API call: GET /api/users/{userId}/borrow-history
   Future<List<Map<String, dynamic>>> getUserHistory({
     String? userId,
     String? searchQuery,

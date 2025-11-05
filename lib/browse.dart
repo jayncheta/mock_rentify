@@ -1,26 +1,131 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/items_service.dart' show ItemsService;
+import 'services/user_service.dart' show UserBorrowService;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'user/borrow_request.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class FavoritesRepo {
   FavoritesRepo._();
   static final FavoritesRepo instance = FavoritesRepo._();
 
   final ValueNotifier<Set<String>> favorites = ValueNotifier(<String>{});
+  static const String _baseUrl = 'http://172.25.202.28:3000';
+
+  // Fallback to local storage if backend fails
   static const String _favoritesKey = 'user_favorites';
 
+  /// Load favorites from backend
   Future<void> loadFavorites() async {
+    try {
+      // Get current logged-in user
+      final user = await UserBorrowService().getCurrentUser();
+      if (user == null) {
+        debugPrint(
+          '⚠️ No user logged in, loading favorites from local storage',
+        );
+        await _loadFavoritesLocal();
+        return;
+      }
+
+      final userId = user['user_id']?.toString() ?? '';
+      if (userId.isEmpty) {
+        debugPrint('⚠️ Invalid user ID, loading favorites from local storage');
+        await _loadFavoritesLocal();
+        return;
+      }
+
+      debugPrint('🔄 Loading favorites for user $userId from backend...');
+      final response = await http.get(
+        Uri.parse('$_baseUrl/users/$userId/favorites'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final List<dynamic> favList = data['favorites'] ?? [];
+        favorites.value = favList.map((e) => e.toString()).toSet();
+        debugPrint('✅ Loaded ${favorites.value.length} favorites from backend');
+      } else {
+        debugPrint('❌ Error loading favorites: ${response.statusCode}');
+        await _loadFavoritesLocal(); // Fallback to local
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading favorites from backend: $e');
+      await _loadFavoritesLocal(); // Fallback to local
+    }
+  }
+
+  /// Load favorites from local storage (fallback)
+  Future<void> _loadFavoritesLocal() async {
     final prefs = await SharedPreferences.getInstance();
     final List<String>? savedFavorites = prefs.getStringList(_favoritesKey);
     if (savedFavorites != null) {
       favorites.value = savedFavorites.toSet();
+      debugPrint(
+        '✅ Loaded ${favorites.value.length} favorites from local storage',
+      );
     }
   }
 
-  Future<void> _saveFavorites() async {
+  /// Save favorites to backend
+  Future<void> _saveFavorite(String itemId, bool isAdding) async {
+    try {
+      // Get current logged-in user
+      final user = await UserBorrowService().getCurrentUser();
+      if (user == null) {
+        debugPrint('⚠️ No user logged in, saving to local storage');
+        await _saveFavoritesLocal();
+        return;
+      }
+
+      final userId = user['user_id']?.toString() ?? '';
+      if (userId.isEmpty) {
+        await _saveFavoritesLocal();
+        return;
+      }
+
+      if (isAdding) {
+        // Add to favorites
+        debugPrint('➕ Adding item $itemId to favorites for user $userId');
+        final response = await http.post(
+          Uri.parse('$_baseUrl/users/$userId/favorites'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'item_id': itemId}),
+        );
+
+        if (response.statusCode == 200) {
+          debugPrint('✅ Item added to favorites in backend');
+        } else {
+          debugPrint('❌ Error adding favorite: ${response.statusCode}');
+        }
+      } else {
+        // Remove from favorites
+        debugPrint('➖ Removing item $itemId from favorites for user $userId');
+        final response = await http.delete(
+          Uri.parse('$_baseUrl/users/$userId/favorites/$itemId'),
+          headers: {'Content-Type': 'application/json'},
+        );
+
+        if (response.statusCode == 200) {
+          debugPrint('✅ Item removed from favorites in backend');
+        } else {
+          debugPrint('❌ Error removing favorite: ${response.statusCode}');
+        }
+      }
+
+      // Also save to local storage as backup
+      await _saveFavoritesLocal();
+    } catch (e) {
+      debugPrint('❌ Error saving favorite to backend: $e');
+      await _saveFavoritesLocal();
+    }
+  }
+
+  /// Save to local storage (fallback)
+  Future<void> _saveFavoritesLocal() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_favoritesKey, favorites.value.toList());
   }
@@ -53,7 +158,7 @@ class FavoritesRepo {
                 Navigator.of(context).pop();
                 current.remove(id);
                 favorites.value = current;
-                _saveFavorites();
+                _saveFavorite(id, false); // Remove from backend
               },
               child: Text('Yes', style: GoogleFonts.poppins()),
             ),
@@ -82,7 +187,7 @@ class FavoritesRepo {
                 Navigator.of(context).pop();
                 current.add(id);
                 favorites.value = current;
-                _saveFavorites();
+                _saveFavorite(id, true); // Add to backend
               },
               child: Text('Yes', style: GoogleFonts.poppins()),
             ),

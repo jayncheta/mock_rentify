@@ -155,9 +155,58 @@ app.post('/signup', (req, res) => {
     );
 });
 
+// Endpoint: Get user's favorites
+app.get('/users/:userId/favorites', (req, res) => {
+    const { userId } = req.params;
+    console.log(`Fetching favorites for user: ${userId}`);
+    
+    db.query(
+        'SELECT item_id FROM user_favorites WHERE user_id = ?',
+        [userId],
+        (err, results) => {
+            if (err) {
+                console.error('Error fetching favorites:', err);
+                return res.status(500).json({ error: err });
+            }
+            console.log(`Found ${results.length} favorites for user ${userId}`);
+            const itemIds = results.map(row => row.item_id.toString());
+            res.json({ favorites: itemIds });
+        }
+    );
+});
+
+// Get all favorite items for a given user
+app.get('/users/:id/favorites', (req, res) => {
+    db.query(
+        `SELECT f.item_id, i.item_name, i.description, i.availability_status 
+         FROM user_favorites f 
+         JOIN items i ON f.item_id = i.item_id 
+         WHERE f.user_id = ?`,
+        [req.params.id],
+        (err, results) => {
+            if (err) return res.status(500).json({ error: err });
+            res.json(results);
+        }
+    );
+});
+
+// Add an item to user's favorites
+app.post('/users/:id/favorites', (req, res) => {
+    const user_id = req.params.id;
+    const { item_id } = req.body;
+    db.query(
+        'INSERT IGNORE INTO user_favorites (user_id, item_id) VALUES (?, ?)',
+        [user_id, item_id],
+        (err, result) => {
+            if (err) return res.status(500).json({ error: err });
+            res.json({ success: true });
+        }
+    );
+});
+
 const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Accessible at http://172.25.7.206:${PORT}`);
+    console.log(`Accessible at http://172.25.202.28:${PORT}`);
 });
 
