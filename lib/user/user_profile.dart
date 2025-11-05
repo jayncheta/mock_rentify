@@ -1,113 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:convert';
-import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/user_service.dart';
 
 class ProfilePage extends StatelessWidget {
   static const String routeName = '/user/profile';
   const ProfilePage({super.key});
 
   Future<Map<String, int>> _getCounts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? [];
-
-    // Count across ALL items. Currently renting is the actual count of active approved rentals.
-    int currentlyRenting = 0;
-    int lateReturns = 0;
-    int onTimeReturns = 0;
-    int rentHistory = 0;
-
-    final df = DateFormat('dd/MM/yy');
-
-    for (final s in list) {
-      Map<String, dynamic> r;
-      try {
-        r = jsonDecode(s) as Map<String, dynamic>;
-      } catch (_) {
-        continue;
-      }
-
-      // Basic item structure check
-      final itm = r['item'];
-      if (itm is! Map<String, dynamic>) continue;
-
-      final status = (r['status'] ?? '').toString();
-
-      // planned return date
-      DateTime? plannedReturn;
-      final plannedReturnStr = (r['returnDate'] ?? '').toString();
-      if (plannedReturnStr.isNotEmpty) {
-        try {
-          plannedReturn = df.parse(plannedReturnStr);
-        } catch (_) {}
-      }
-
-      // if present, indicates a completed rental
-      DateTime? returnedAt;
-      final returnedAtStr = (r['returnedAt'] ?? '').toString();
-      if (returnedAtStr.isNotEmpty) {
-        try {
-          returnedAt = DateTime.parse(returnedAtStr);
-        } catch (_) {}
-      }
-
-      final isFlaggedLate = (r['lateReturn'] ?? false) == true;
-
-      if (returnedAt != null) {
-        // Completed rentals only
-        rentHistory += 1;
-
-        // Determine late strictly by due date vs returnedAt when available.
-        // Fallback: if no plannedReturn provided, treat explicit 'Late Return' status/flag as late.
-        final bool isLateByDate =
-            plannedReturn != null && returnedAt.isAfter(plannedReturn);
-        final bool explicitLate =
-            (r['status']?.toString() == 'Late Return') || isFlaggedLate;
-
-        if (isLateByDate || (plannedReturn == null && explicitLate)) {
-          lateReturns += 1;
-        } else {
-          onTimeReturns += 1;
-        }
-      } else {
-        // Active rentals: only contribute to 'Currently Renting' (binary), not late/on-time counters
-        if (status == 'Approved') {
-          // Count as currently renting regardless of due date status; do not add to Rent History
-          currentlyRenting += 1;
-        }
-      }
-    }
-
-    // currentlyRenting already holds the count of active rentals
-
-    return {
-      'currently': currentlyRenting,
-      'late': lateReturns,
-      'history': rentHistory,
-      'ontime': onTimeReturns,
-    };
+    // TODO: Get userId from auth service
+    return await UserBorrowService().getUserStats(userId: 'current_user_id');
   }
 
   Future<bool> _hasActiveLate() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? [];
-    for (final s in list) {
-      try {
-        final r = jsonDecode(s) as Map<String, dynamic>;
-        final status = (r['status'] ?? '').toString();
-        final returnedAt = r['returnedAt'];
-        final late = (r['lateReturn'] ?? false) == true;
-        if (status == 'Approved' &&
-            (returnedAt == null || returnedAt.toString().isEmpty) &&
-            late) {
-          return true;
-        }
-      } catch (_) {
-        continue;
-      }
-    }
-    return false;
+    // TODO: Get userId from auth service
+    return await UserBorrowService().hasActiveLateReturn(
+      userId: 'current_user_id',
+    );
   }
 
   @override

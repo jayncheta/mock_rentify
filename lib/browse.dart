@@ -98,7 +98,6 @@ class Item {
   final String title;
   final String imageUrl;
   final String statusColor;
-  final String category;
   final String description;
   final bool isDisabled;
   final bool isBorrowed;
@@ -108,7 +107,6 @@ class Item {
     required this.title,
     required this.imageUrl,
     required this.statusColor,
-    required this.category,
     this.description = '',
     this.isDisabled = false,
     this.isBorrowed = false,
@@ -119,7 +117,6 @@ class Item {
     String? title,
     String? imageUrl,
     String? statusColor,
-    String? category,
     String? description,
     bool? isDisabled,
     bool? isBorrowed,
@@ -129,7 +126,6 @@ class Item {
       title: title ?? this.title,
       imageUrl: imageUrl ?? this.imageUrl,
       statusColor: statusColor ?? this.statusColor,
-      category: category ?? this.category,
       description: description ?? this.description,
       isDisabled: isDisabled ?? this.isDisabled,
       isBorrowed: isBorrowed ?? this.isBorrowed,
@@ -428,7 +424,6 @@ class _BrowseScreenState extends State<BrowseScreen> {
           title: 'ipad1',
           imageUrl: 'assets/images/ipad.png',
           statusColor: 'Unvailable',
-          category: 'Electronics',
           isDisabled: true,
         ),
         Item(
@@ -436,77 +431,66 @@ class _BrowseScreenState extends State<BrowseScreen> {
           title: 'ipad2',
           imageUrl: 'assets/images/ipad.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'macbook1',
           title: 'macbook1',
           imageUrl: 'assets/images/macbook.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'macbook2',
           title: 'macbook2',
           imageUrl: 'assets/images/macbook.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'windowslaptop1',
           title: 'windows laptop1',
           imageUrl: 'assets/images/windows_laptop.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'windowslaptop2',
           title: 'windows laptop2',
           imageUrl: 'assets/images/windows_laptop.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'windowslaptop3',
           title: 'windows laptop3',
           imageUrl: 'assets/images/windows_laptop.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'microphone1',
           title: 'Microphone1',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'microphone2',
           title: 'Microphone2',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'microphone3',
           title: 'Microphone3',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'microphone4',
           title: 'Microphone4',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
         Item(
           id: 'microphone5',
           title: 'Microphone5',
           imageUrl: 'assets/images/microphone.png',
           statusColor: 'Available',
-          category: 'Electronics',
         ),
       ];
       ItemsService.instance.items.value = initialItems;

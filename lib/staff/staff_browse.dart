@@ -277,13 +277,6 @@ class StaffItemCard extends StatelessWidget {
               style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey[600]),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-            child: Text(
-              item.category,
-              style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey[600]),
-            ),
-          ),
         ],
       ),
     );

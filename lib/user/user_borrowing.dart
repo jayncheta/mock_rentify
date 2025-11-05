@@ -1,9 +1,8 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import '../browse.dart' show Item, primaryColor;
+import '../services/user_service.dart';
 
-class UserBorrowingScreen extends StatelessWidget {
+class UserBorrowingScreen extends StatefulWidget {
   static const String routeName = '/user/user-borrowing';
 
   final Item item;
@@ -23,43 +22,56 @@ class UserBorrowingScreen extends StatelessWidget {
     required this.reason,
   });
 
-  Future<void> _saveBorrowRequest(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
+  @override
+  State<UserBorrowingScreen> createState() => _UserBorrowingScreenState();
+}
 
-    // Retrieve existing history or initialize empty
-    final data = prefs.getStringList('user_borrow_history') ?? [];
+class _UserBorrowingScreenState extends State<UserBorrowingScreen> {
+  final UserBorrowService _borrowService = UserBorrowService();
+  bool _isSubmitting = false;
 
-    // Create a new borrow request record
-    final newRequest = {
-      'item': {
-        'id': item.id,
-        'title': item.title,
-        'imageUrl': item.imageUrl,
-        'statusColor': item.statusColor,
-        'category': item.category,
-        'description': item.description,
+  Future<void> _saveBorrowRequest() async {
+    if (_isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+
+    final success = await _borrowService.createBorrowRequest(
+      userId: 'current_user_id', // TODO: Get from auth service
+      item: {
+        'id': widget.item.id,
+        'title': widget.item.title,
+        'imageUrl': widget.item.imageUrl,
+        'statusColor': widget.item.statusColor,
+        'description': widget.item.description,
       },
-      'borrowerName': 'James', // TODO: make this dynamic later
-      'borrowDate': borrowDate,
-      'pickUpTime': pickUpTime,
-      'returnDate': returnDate,
-      'returnTime': returnTime,
-      'reason': reason,
-      'status': 'Pending', // Track approval status
-      'createdAt': DateTime.now().toIso8601String(),
-    };
+      borrowerName: 'James', // TODO: Get from auth service
+      borrowDate: widget.borrowDate,
+      pickUpTime: widget.pickUpTime,
+      returnDate: widget.returnDate,
+      returnTime: widget.returnTime,
+      reason: widget.reason,
+    );
 
-    // Save it locally
-    data.add(jsonEncode(newRequest));
-    await prefs.setStringList('user_borrow_history', data);
+    setState(() => _isSubmitting = false);
 
-    // Confirmation message
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Borrow request submitted!')));
+    if (!mounted) return;
 
-    // Navigate to history page
-    Navigator.pushNamed(context, '/user/request');
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Borrow request submitted successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pushNamed(context, '/user/request');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to submit request. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -80,65 +92,91 @@ class UserBorrowingScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(child: Image.asset(item.imageUrl, height: 180)),
-            const SizedBox(height: 15),
-            const Divider(thickness: 1.5, color: primaryColor),
-            const SizedBox(height: 20),
-            Text(
-              item.title,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Text('Lender:', style: TextStyle(fontSize: 20)),
-            const SizedBox(height: 1),
-            Row(
-              children: const [
-                Icon(Icons.person, size: 36),
-                SizedBox(width: 5),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Image.asset(widget.item.imageUrl, height: 180)),
+                const SizedBox(height: 15),
+                const Divider(thickness: 1.5, color: primaryColor),
+                const SizedBox(height: 20),
                 Text(
-                  'Lender name',
-                  style: TextStyle(color: Colors.black54, fontSize: 20),
-                ),
-                Spacer(),
-                IconButton(
-                  onPressed: null,
-                  icon: Icon(
-                    Icons.chat_bubble_outline,
-                    size: 36,
-                    color: Colors.black54,
+                  widget.item.title,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
+                const SizedBox(height: 16),
+                const Text('Lender:', style: TextStyle(fontSize: 20)),
+                const SizedBox(height: 1),
+                Row(
+                  children: const [
+                    Icon(Icons.person, size: 36),
+                    SizedBox(width: 5),
+                    Text(
+                      'Lender name',
+                      style: TextStyle(color: Colors.black54, fontSize: 20),
+                    ),
+                    Spacer(),
+                    IconButton(
+                      onPressed: null,
+                      icon: Icon(
+                        Icons.chat_bubble_outline,
+                        size: 36,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Description:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.reason,
+                  style: const TextStyle(color: Colors.black87),
+                ),
+                const Spacer(),
+                ElevatedButton(
+                  onPressed: _isSubmitting ? null : _saveBorrowRequest,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Text(
+                          'Rent now',
+                          style: TextStyle(color: Colors.white, fontSize: 18),
+                        ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Description:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+          ),
+          if (_isSubmitting)
+            Container(
+              color: Colors.black.withOpacity(0.1),
+              child: const Center(child: CircularProgressIndicator()),
             ),
-            const SizedBox(height: 10),
-            Text(reason, style: const TextStyle(color: Colors.black87)),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () => _saveBorrowRequest(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: const Text(
-                'Rent now',
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
