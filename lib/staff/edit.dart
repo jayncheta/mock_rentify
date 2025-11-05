@@ -33,13 +33,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
   final TextEditingController _idController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
-  String? _selectedCategory;
-  final List<String> _categories = [
-    "Electronics",
-    "Furniture",
-    "Tools",
-    "Other",
-  ];
 
   Item? _editingItem;
   List<Item> _filteredItems = [];
@@ -70,7 +63,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
       _nameController.text = item.title;
       _idController.text = item.id;
       _descriptionController.text = item.description;
-      _selectedCategory = item.category;
       _imageFile = null;
     });
   }
@@ -392,7 +384,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                   _nameController.clear();
                   _idController.clear();
                   _descriptionController.clear();
-                  _selectedCategory = null;
                 });
               }
             },
@@ -453,9 +444,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
         buildLabel("Item Description:"),
         buildTextField(_descriptionController, maxLines: 5),
         const SizedBox(height: 16),
-        buildLabel("Category:"),
-        buildCategoryDropdown(),
-        const SizedBox(height: 16),
         buildLabel("Upload Image"),
         buildImageUploadSection(),
         const SizedBox(height: 32),
@@ -487,33 +475,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget buildCategoryDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: textInputBgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedCategory,
-          isExpanded: true,
-          hint: Text(
-            "Select Category",
-            style: GoogleFonts.poppins(color: Colors.black54),
-          ),
-          items: _categories.map((e) {
-            return DropdownMenuItem<String>(
-              value: e,
-              child: Text(e, style: GoogleFonts.poppins()),
-            );
-          }).toList(),
-          onChanged: (value) => setState(() => _selectedCategory = value),
         ),
       ),
     );
@@ -616,7 +577,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                 _nameController.clear();
                 _idController.clear();
                 _descriptionController.clear();
-                _selectedCategory = null;
               });
             },
             style: ElevatedButton.styleFrom(
@@ -692,7 +652,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
       if (_editingItem == null) return;
       final updatedItem = _editingItem!.copyWith(
         title: _nameController.text.trim(),
-        category: _selectedCategory!,
         description: _descriptionController.text.trim(),
       );
       await ItemsService.instance.updateItem(updatedItem);
@@ -707,7 +666,6 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
           _nameController.clear();
           _idController.clear();
           _descriptionController.clear();
-          _selectedCategory = null;
         });
       }
     } catch (e) {

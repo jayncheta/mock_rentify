@@ -94,7 +94,6 @@ class ItemsService {
   Future<void> addItem({
     required String title,
     required File? imageFile,
-    required String category,
     String? assetImagePath,
   }) async {
     try {
@@ -117,7 +116,6 @@ class ItemsService {
         id: id,
         title: title,
         imageUrl: imageUrl,
-        category: category,
         statusColor: 'Available', // Default status
       );
 

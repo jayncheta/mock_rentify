@@ -5,6 +5,93 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/items_service.dart' show ItemsService;
 import '../browse.dart' show primaryColor;
 
+// TODO: Replace with backend API service when ready
+class BorrowRequestService {
+  static final BorrowRequestService _instance =
+      BorrowRequestService._internal();
+  factory BorrowRequestService() => _instance;
+  BorrowRequestService._internal();
+
+  /// Fetch all pending borrow requests
+  /// TODO: Replace with API call: GET /api/borrow-requests?status=pending
+  Future<List<Map<String, dynamic>>> getPendingRequests() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final data = prefs.getStringList('user_borrow_history') ?? [];
+
+      return data
+          .map((e) => jsonDecode(e) as Map<String, dynamic>)
+          .where((req) => req['status'] == 'Pending')
+          .toList();
+    } catch (e) {
+      debugPrint('Error loading pending requests: $e');
+      return [];
+    }
+  }
+
+  /// Update borrow request status (approve/reject)
+  /// TODO: Replace with API call: PATCH /api/borrow-requests/{id}
+  /// Body: { "status": "Approved|Rejected", "lenderResponse": "...", "approverId": "..." }
+  Future<bool> updateRequestStatus({
+    required String requestId,
+    required String itemTitle,
+    required String borrowerName,
+    required String status,
+    required String lenderResponse,
+    String? approverId,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final data = prefs.getStringList('user_borrow_history') ?? [];
+      final allRequests = data.map((e) => jsonDecode(e)).toList();
+
+      String? approvedItemId;
+      bool requestFound = false;
+
+      for (final req in allRequests) {
+        if (req['item']['title'] == itemTitle &&
+            req['borrowerName'] == borrowerName) {
+          req['status'] = status;
+          req['lenderResponse'] =
+              lenderResponse; // Changed from 'reason' to be more specific
+
+          if (status == 'Approved') {
+            req['approvedAt'] = DateTime.now().toIso8601String();
+            req['approvedBy'] =
+                approverId ?? 'Lender'; // TODO: Use actual user ID from auth
+            approvedItemId = (req['item']['id'] ?? '').toString();
+          } else if (status == 'Rejected') {
+            req['rejectedAt'] = DateTime.now().toIso8601String();
+            req['rejectedBy'] = approverId ?? 'Lender';
+          }
+
+          requestFound = true;
+          break;
+        }
+      }
+
+      if (!requestFound) {
+        return false;
+      }
+
+      await prefs.setStringList(
+        'user_borrow_history',
+        allRequests.map((e) => jsonEncode(e)).toList(),
+      );
+
+      // If approved, mark the item as borrowed
+      if (approvedItemId != null && approvedItemId.isNotEmpty) {
+        await ItemsService.instance.setBorrowed(approvedItemId, true);
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('Error updating request status: $e');
+      return false;
+    }
+  }
+}
+
 class LenderReviewScreen extends StatefulWidget {
   static const String routeName = '/lender/review';
 
@@ -15,7 +102,10 @@ class LenderReviewScreen extends StatefulWidget {
 }
 
 class _LenderReviewScreenState extends State<LenderReviewScreen> {
+  final BorrowRequestService _requestService = BorrowRequestService();
   List<Map<String, dynamic>> _pendingRequests = [];
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -24,60 +114,61 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
   }
 
   Future<void> _loadPendingRequests() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('user_borrow_history') ?? [];
-
     setState(() {
-      _pendingRequests = data
-          .map((e) => jsonDecode(e) as Map<String, dynamic>)
-          .where((req) => req['status'] == 'Pending')
-          .toList();
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      final requests = await _requestService.getPendingRequests();
+      setState(() {
+        _pendingRequests = requests;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load requests: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _updateRequestStatus(
     int index,
     String status,
-    String reason,
+    String lenderResponse,
   ) async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('user_borrow_history') ?? [];
-
-    // Find the matching request
     final request = _pendingRequests[index];
-    final allRequests = data.map((e) => jsonDecode(e)).toList();
 
-    String? approvedItemId;
-    for (final req in allRequests) {
-      if (req['item']['title'] == request['item']['title'] &&
-          req['borrowerName'] == request['borrowerName']) {
-        req['status'] = status;
-        req['reason'] = reason;
-        if (status == 'Approved') {
-          req['approvedAt'] = DateTime.now().toIso8601String();
-          // TODO: Replace with actual approver identity when auth is added
-          req['approvedBy'] = 'Lender';
-          approvedItemId = (req['item']['id'] ?? '').toString();
-        }
-        break;
-      }
-    }
+    setState(() => _isLoading = true);
 
-    await prefs.setStringList(
-      'user_borrow_history',
-      allRequests.map((e) => jsonEncode(e)).toList(),
+    final success = await _requestService.updateRequestStatus(
+      requestId: request['id']?.toString() ?? '', // TODO: Use actual request ID
+      itemTitle: request['item']['title'],
+      borrowerName: request['borrowerName'],
+      status: status,
+      lenderResponse: lenderResponse,
+      // approverId: 'current_user_id', // TODO: Get from auth service
     );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Request ${status.toLowerCase()} successfully')),
-    );
+    setState(() => _isLoading = false);
 
-    // If approved, mark the item as borrowed (yellow status)
-    if (approvedItemId != null && approvedItemId.isNotEmpty) {
-      await ItemsService.instance.setBorrowed(approvedItemId, true);
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Request ${status.toLowerCase()} successfully'),
+          backgroundColor: status == 'Approved' ? Colors.green : Colors.red,
+        ),
+      );
+      _loadPendingRequests();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update request. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
-
-    _loadPendingRequests(); // Refresh the screen
   }
 
   void _showReviewDialog(int index) {
@@ -186,69 +277,128 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
             color: Colors.white,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _isLoading ? null : _loadPendingRequests,
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
-      body: _pendingRequests.isEmpty
-          ? Center(
-              child: Text(
-                'No pending requests',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  color: Colors.grey[700],
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading && _pendingRequests.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: GoogleFonts.poppins(color: Colors.red[700]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadPendingRequests,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_pendingRequests.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No pending requests',
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: _pendingRequests.length,
+          itemBuilder: (context, index) {
+            final req = _pendingRequests[index];
+            final item = req['item'];
+
+            return Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: ListTile(
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    item['imageUrl'],
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                title: Text(
+                  item['title'],
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  'Borrower: ${req['borrowerName']}\nReturn: ${req['returnDate']}',
+                  style: GoogleFonts.poppins(fontSize: 13),
+                ),
+                trailing: ElevatedButton(
+                  onPressed: _isLoading ? null : () => _showReviewDialog(index),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Review'),
                 ),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: _pendingRequests.length,
-              itemBuilder: (context, index) {
-                final req = _pendingRequests[index];
-                final item = req['item'];
-
-                return Container(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        item['imageUrl'],
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    title: Text(
-                      item['title'],
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      'Borrower: ${req['borrowerName']}\nReturn: ${req['returnDate']}',
-                      style: GoogleFonts.poppins(fontSize: 13),
-                    ),
-                    trailing: ElevatedButton(
-                      onPressed: () => _showReviewDialog(index),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Review'),
-                    ),
-                  ),
-                );
-              },
+            );
+          },
+        ),
+        if (_isLoading && _pendingRequests.isNotEmpty)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
             ),
+          ),
+      ],
     );
   }
 }
