@@ -11,7 +11,7 @@ class UserBorrowService {
   UserBorrowService._internal();
 
   // Backend API base URL - Your server IP address
-  static const String _baseUrl = 'http://172.25.202.28:3000';
+  static const String _baseUrl = 'http://172.25.4.100:3000';
 
   /// Create a new borrow request
   /// Connects to: POST /borrow-request
@@ -37,6 +37,10 @@ class UserBorrowService {
           'borrower_id': userId,
           'lender_id': lenderId,
           'borrower_reason': reason,
+          'borrow_date': borrowDate,
+          'pickup_time': pickUpTime,
+          'return_date': returnDate,
+          'return_time': returnTime,
         }),
       );
 

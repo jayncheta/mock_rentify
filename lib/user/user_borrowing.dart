@@ -35,8 +35,22 @@ class _UserBorrowingScreenState extends State<UserBorrowingScreen> {
 
     setState(() => _isSubmitting = true);
 
+    // Get current user info
+    final currentUser = await _borrowService.getCurrentUser();
+    if (currentUser == null) {
+      setState(() => _isSubmitting = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to submit a borrow request.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final success = await _borrowService.createBorrowRequest(
-      userId: 'current_user_id', // TODO: Get from auth service
+      userId: currentUser['user_id'].toString(),
       item: {
         'id': widget.item.id,
         'title': widget.item.title,
@@ -44,7 +58,7 @@ class _UserBorrowingScreenState extends State<UserBorrowingScreen> {
         'statusColor': widget.item.statusColor,
         'description': widget.item.description,
       },
-      borrowerName: 'James', // TODO: Get from auth service
+      borrowerName: currentUser['full_name'] ?? currentUser['username'],
       borrowDate: widget.borrowDate,
       pickUpTime: widget.pickUpTime,
       returnDate: widget.returnDate,
