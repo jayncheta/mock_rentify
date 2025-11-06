@@ -195,9 +195,7 @@ class RentifyApp extends StatelessWidget {
           return UserBorrowingScreen(
             item: map['item'],
             borrowDate: map['borrowDate'],
-            pickUpTime: map['pickUpTime'],
             returnDate: map['returnDate'],
-            returnTime: map['returnTime'],
             reason: map['reason'],
           );
         },

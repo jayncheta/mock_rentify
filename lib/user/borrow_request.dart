@@ -20,9 +20,7 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
   DateTime _toDate = DateTime.now();
 
   final _borrowDate = TextEditingController();
-  final _pickUpTime = TextEditingController();
   final _returnDate = TextEditingController();
-  final _returnTime = TextEditingController();
   final _reason = TextEditingController();
 
   Future<bool?> _showCancelDialog() => showDialog<bool>(
@@ -94,42 +92,10 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
     }
   }
 
-  Future<void> _selectTime(
-    BuildContext context,
-    TextEditingController controller,
-  ) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      final now = DateTime.now();
-      final dt = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        picked.hour,
-        picked.minute,
-      );
-      setState(() {
-        controller.text = DateFormat('HH:mm').format(dt);
-      });
-    }
-  }
-
   @override
   void dispose() {
     _borrowDate.dispose();
-    _pickUpTime.dispose();
     _returnDate.dispose();
-    _returnTime.dispose();
     _reason.dispose();
     super.dispose();
   }
@@ -180,10 +146,6 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
                     Expanded(
                       child: _buildDatePickerField('Borrow date', _borrowDate),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildTimePickerField('Pick up time', _pickUpTime),
-                    ),
                   ],
                 ),
 
@@ -193,10 +155,6 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
                   children: [
                     Expanded(
                       child: _buildDatePickerField('Return date', _returnDate),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildTimePickerField('Return time', _returnTime),
                     ),
                   ],
                 ),
@@ -255,9 +213,7 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
                         arguments: {
                           'item': item,
                           'borrowDate': _borrowDate.text,
-                          'pickUpTime': _pickUpTime.text,
                           'returnDate': _returnDate.text,
-                          'returnTime': _returnTime.text,
                           'reason': _reason.text,
                         },
                       );
@@ -305,25 +261,6 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
       },
       validator: (value) =>
           value?.isEmpty ?? true ? 'Please select a date' : null,
-    );
-  }
-
-  Widget _buildTimePickerField(String label, TextEditingController controller) {
-    return TextFormField(
-      controller: controller,
-      readOnly: true,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.black54),
-        suffixIcon: const Icon(Icons.access_time),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.grey),
-        ),
-      ),
-      onTap: () => _selectTime(context, controller),
-      validator: (value) =>
-          value?.isEmpty ?? true ? 'Please select a time' : null,
     );
   }
 }
