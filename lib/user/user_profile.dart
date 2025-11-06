@@ -2,9 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/user_service.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   static const String routeName = '/user/profile';
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  String _userName = 'User';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final user = await UserBorrowService().getCurrentUser();
+    if (user != null && mounted) {
+      setState(() {
+        _userName =
+            user['full_name']?.toString() ??
+            user['username']?.toString() ??
+            'User';
+      });
+    }
+  }
 
   Future<Map<String, int>> _getCounts() async {
     // Get current user's stats
@@ -109,7 +134,7 @@ class ProfilePage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Profile',
+              "$_userName's Profile",
               style: GoogleFonts.poppins(
                 fontSize: 50,
                 fontWeight: FontWeight.bold,

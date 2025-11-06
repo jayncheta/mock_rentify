@@ -27,12 +27,6 @@ class UserAccount {
   const UserAccount(this.username, this.password, this.role);
 }
 
-const List<UserAccount> validTestAccounts = [
-  UserAccount('User', 'user1234', 'User'),
-  UserAccount('Staff', 'staff1234', 'Staff'),
-  UserAccount('Lender', 'lender1234', 'Lender'),
-];
-
 void main() => runApp(const RentifyApp());
 
 void _showAlertDialog(
@@ -302,12 +296,46 @@ class _LoginScreenState extends State<LoginScreen> {
       if (userData != null) {
         // Login successful
         final role = userData['role']?.toString().toLowerCase() ?? '';
+        final username =
+            userData['full_name']?.toString() ??
+            userData['username']?.toString() ??
+            'User';
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Welcome, ${userData['username']}!')),
+        // Show welcome popup
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              '👋 Welcome Back!',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
+            content: Text(
+              'Hello, $username!\n\nYou have successfully logged in.',
+              style: TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Continue to browse',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
+
+        if (!mounted) return;
 
         // Navigate based on role
         if (role == 'staff') {
@@ -366,17 +394,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.black,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0, bottom: 20.0),
-                child: Text(
-                  'User - user1234, Staff - staff1234, Lender - lender1234',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: RentifyApp.primaryColor,
-                  ),
-                ),
-              ),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _usernameController,
                 decoration: const InputDecoration(labelText: 'Username'),
