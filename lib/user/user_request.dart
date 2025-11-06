@@ -319,6 +319,7 @@ class _UserRequestPageState extends State<UserRequestPage> {
                         itemData['item']?['title']?.toString() ??
                         'Unknown Item';
                     final String itemImage =
+                        itemData['image_url']?.toString() ??
                         itemData['item_image']?.toString() ??
                         itemData['item']?['imageUrl']?.toString() ??
                         'http://10.2.8.30:3000/images/default.png';

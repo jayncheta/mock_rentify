@@ -7,18 +7,14 @@ class UserBorrowingScreen extends StatefulWidget {
 
   final Item item;
   final String borrowDate;
-  final String pickUpTime;
   final String returnDate;
-  final String returnTime;
   final String reason;
 
   const UserBorrowingScreen({
     super.key,
     required this.item,
     required this.borrowDate,
-    required this.pickUpTime,
     required this.returnDate,
-    required this.returnTime,
     required this.reason,
   });
 
@@ -60,9 +56,7 @@ class _UserBorrowingScreenState extends State<UserBorrowingScreen> {
       },
       borrowerName: currentUser['full_name'] ?? currentUser['username'],
       borrowDate: widget.borrowDate,
-      pickUpTime: widget.pickUpTime,
       returnDate: widget.returnDate,
-      returnTime: widget.returnTime,
       reason: widget.reason,
     );
 

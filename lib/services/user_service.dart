@@ -19,9 +19,7 @@ class UserBorrowService {
     required Map<String, dynamic> item,
     required String borrowerName,
     required String borrowDate,
-    required String pickUpTime,
     required String returnDate,
-    required String returnTime,
     required String reason,
   }) async {
     try {
@@ -37,9 +35,7 @@ class UserBorrowService {
           'lender_id': lenderId,
           'borrower_reason': reason,
           'borrow_date': borrowDate,
-          'pickup_time': pickUpTime,
           'return_date': returnDate,
-          'return_time': returnTime,
         }),
       );
 

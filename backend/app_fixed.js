@@ -45,13 +45,13 @@ app.get('/items', (req, res) => {
 
 // -------- CREATE BORROW REQUEST --------
 app.post('/borrow-request', (req, res) => {
-    const { item_id, borrower_id, lender_id, borrower_reason } = req.body;
+    const { item_id, borrower_id, lender_id, borrower_reason, borrow_date, return_date } = req.body;
     if (!item_id || !borrower_id || !lender_id) {
         return res.status(400).json({ error: "Missing required fields." });
     }
     db.query(
-        'INSERT INTO borrow_requests (item_id, borrower_id, lender_id, borrower_reason) VALUES (?, ?, ?, ?)',
-        [item_id, borrower_id, lender_id, borrower_reason || ''],
+        'INSERT INTO borrow_requests (item_id, borrower_id, lender_id, borrower_reason, borrow_date, return_date) VALUES (?, ?, ?, ?, ?, ?)',
+        [item_id, borrower_id, lender_id, borrower_reason || '', borrow_date || null, return_date || null],
         (err, result) => {
             if (err) {
                 console.error('Error inserting borrow_request:', err);
@@ -63,6 +63,32 @@ app.post('/borrow-request', (req, res) => {
 });
 
 // -------- GET ALL BORROW REQUESTS --------
+app.post('/borrow-request', (req, res) => {
+    const { 
+        item_id, 
+        borrower_id, 
+        lender_id, 
+        borrower_reason,
+        borrow_date,     // Add these
+        return_date      // Add these
+    } = req.body;
+
+    db.query(
+        `INSERT INTO borrow_requests 
+         (item_id, borrower_id, lender_id, borrower_reason, borrow_date, return_date) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [item_id, borrower_id, lender_id, borrower_reason || '', borrow_date || null, return_date || null],
+        (err, result) => {
+            if (err) {
+                console.error('Error inserting borrow_request:', err);
+                return res.status(500).json({ error: err });
+            }
+            res.json({ success: true, request_id: result.insertId });
+        }
+    );
+});
+
+// -------- GET BORROW REQUESTS FOR USER --------
 app.get('/borrow-requests', (req, res) => {
     db.query(`
         SELECT 
@@ -74,6 +100,8 @@ app.get('/borrow-requests', (req, res) => {
             br.status,
             br.borrower_reason,
             br.lender_response,
+            br.borrow_date,
+            br.return_date,
             i.item_name,
             i.description AS item_description,
             i.availability_status,
@@ -90,21 +118,22 @@ app.get('/borrow-requests', (req, res) => {
     });
 });
 
-// -------- GET BORROW REQUESTS FOR USER --------
+// Get borrow requests for a specific user
 app.get('/users/:userId/borrow-requests', (req, res) => {
     const { userId } = req.params;
-    const { status } = req.query;
-
-    let query = `
+    
+    db.query(`
         SELECT 
             br.request_id,
             br.item_id,
             br.borrower_id,
             br.lender_id,
+            br.staff_processed_return_id,
             br.status,
             br.borrower_reason,
             br.lender_response,
-            br.staff_processed_return_id,
+            br.borrow_date,
+            br.return_date,
             i.item_name,
             i.description AS item_description,
             i.availability_status,
@@ -112,17 +141,10 @@ app.get('/users/:userId/borrow-requests', (req, res) => {
         FROM borrow_requests br
         LEFT JOIN items i ON br.item_id = i.item_id
         WHERE br.borrower_id = ?
-    `;
-    const params = [userId];
-    if (status) {
-        query += ' AND br.status = ?';
-        params.push(status);
-    }
-    query += ' ORDER BY br.request_id DESC';
-
-    db.query(query, params, (err, results) => {
+        ORDER BY br.request_id DESC
+    `, [userId], (err, results) => {
         if (err) {
-            console.error('Database error:', err);
+            console.error('Error fetching user borrow requests:', err);
             return res.status(500).json({ error: err });
         }
         res.json(results);
