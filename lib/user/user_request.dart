@@ -36,9 +36,8 @@ class _UserRequestPageState extends State<UserRequestPage> {
     });
 
     try {
-      // TODO: Get userId from auth service
+      // Get current user's borrow requests
       final requests = await _borrowService.getUserBorrowRequests(
-        userId: 'current_user_id',
         includeReturned: false, // Only show active requests
       );
 
@@ -313,9 +312,22 @@ class _UserRequestPageState extends State<UserRequestPage> {
                   itemCount: _filteredHistory.length,
                   itemBuilder: (context, index) {
                     final itemData = _filteredHistory[index];
-                    final item = itemData['item'];
+
+                    // Handle both old format (with nested 'item') and new format (flat structure)
+                    final String itemName =
+                        itemData['item_name']?.toString() ??
+                        itemData['item']?['title']?.toString() ??
+                        'Unknown Item';
+                    final String itemImage =
+                        itemData['item_image']?.toString() ??
+                        itemData['item']?['imageUrl']?.toString() ??
+                        'assets/images/macbook.png';
+
                     final status = (itemData['status'] ?? 'Pending').toString();
-                    final reason = itemData['reason'] ?? '';
+                    final reason =
+                        itemData['borrower_reason']?.toString() ??
+                        itemData['reason']?.toString() ??
+                        '';
                     final color = _statusColor(status);
                     final returnedAt = itemData['returnedAt'];
                     final late = (itemData['lateReturn'] ?? false) == true;
@@ -354,10 +366,21 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                                   child: Image.asset(
-                                    item['imageUrl'],
+                                    itemImage,
                                     width: 80,
                                     height: 80,
                                     fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.asset(
+                                          'assets/images/macbook.png',
+                                          width: 80,
+                                          height: 80,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
@@ -366,7 +389,7 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      item['title'],
+                                      itemName,
                                       style: GoogleFonts.poppins(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
@@ -374,13 +397,19 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Borrowing Date: ${itemData['borrowDate']}',
+                                      'Status: $status',
                                       style: GoogleFonts.poppins(fontSize: 13),
                                     ),
-                                    Text(
-                                      'Return Date: ${itemData['returnDate']}',
-                                      style: GoogleFonts.poppins(fontSize: 13),
-                                    ),
+                                    if (reason.isNotEmpty)
+                                      Text(
+                                        'Reason: $reason',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                   ],
                                 ),
                               ),
@@ -464,7 +493,105 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                   )
                                 else if (status == 'Pending')
                                   ElevatedButton(
-                                    onPressed: () {},
+                                    onPressed: () async {
+                                      // Show confirmation dialog
+                                      final confirmed = await showDialog<bool>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          title: Text(
+                                            'Cancel Request',
+                                            style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          content: Text(
+                                            'Are you sure you want to cancel this pending request?',
+                                            style: GoogleFonts.poppins(),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.of(
+                                                context,
+                                              ).pop(false),
+                                              child: Text(
+                                                'No',
+                                                style: GoogleFonts.poppins(),
+                                              ),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => Navigator.of(
+                                                context,
+                                              ).pop(true),
+                                              child: Text(
+                                                'Yes, Cancel',
+                                                style: GoogleFonts.poppins(
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+
+                                      if (confirmed == true) {
+                                        // Get request ID
+                                        final requestId = itemData['request_id']
+                                            ?.toString();
+
+                                        if (requestId == null) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Error: Request ID not found',
+                                                  style: GoogleFonts.poppins(),
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                          return;
+                                        }
+
+                                        // Call cancel method
+                                        final success = await _borrowService
+                                            .cancelBorrowRequest(
+                                              requestId: requestId,
+                                            );
+
+                                        if (mounted) {
+                                          if (success) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Request canceled successfully',
+                                                  style: GoogleFonts.poppins(),
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                            // Reload the list
+                                            _loadBorrowHistory();
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Failed to cancel request',
+                                                  style: GoogleFonts.poppins(),
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(

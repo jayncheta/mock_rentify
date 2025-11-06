@@ -15,7 +15,7 @@ class ItemsService {
   final ValueNotifier<List<Item>> items = ValueNotifier<List<Item>>([]);
 
   // Backend API base URL
-  static const String _baseUrl = 'http://172.25.4.100:3000';
+  static const String _baseUrl = 'http://10.2.8.30:3000';
 
   // --- Persistence keys ---
   static const String _disabledIdsKey = 'disabled_item_ids';

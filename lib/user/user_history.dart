@@ -38,10 +38,8 @@ class _UserHistoryPageState extends State<UserHistoryPage> {
     });
 
     try {
-      // TODO: Get userId from auth service
-      final history = await _borrowService.getUserHistory(
-        userId: 'current_user_id',
-      );
+      // Get current user's history
+      final history = await _borrowService.getUserHistory();
 
       if (mounted) {
         setState(() {
@@ -74,11 +72,8 @@ class _UserHistoryPageState extends State<UserHistoryPage> {
 
   Future<void> _loadHistoryWithSearch(String query) async {
     try {
-      // TODO: Get userId from auth service
-      final history = await _borrowService.getUserHistory(
-        userId: 'current_user_id',
-        searchQuery: query,
-      );
+      // Get current user's history with search
+      final history = await _borrowService.getUserHistory(searchQuery: query);
 
       if (mounted) {
         setState(() {

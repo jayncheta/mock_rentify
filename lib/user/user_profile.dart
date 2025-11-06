@@ -7,15 +7,13 @@ class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   Future<Map<String, int>> _getCounts() async {
-    // TODO: Get userId from auth service
-    return await UserBorrowService().getUserStats(userId: 'current_user_id');
+    // Get current user's stats
+    return await UserBorrowService().getUserStats();
   }
 
   Future<bool> _hasActiveLate() async {
-    // TODO: Get userId from auth service
-    return await UserBorrowService().hasActiveLateReturn(
-      userId: 'current_user_id',
-    );
+    // Get current user's late return status
+    return await UserBorrowService().hasActiveLateReturn();
   }
 
   @override

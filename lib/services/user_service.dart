@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 
 /// Service for all user borrow operations - Connected to backend
@@ -11,7 +10,7 @@ class UserBorrowService {
   UserBorrowService._internal();
 
   // Backend API base URL - Your server IP address
-  static const String _baseUrl = 'http://172.25.4.100:3000';
+  static const String _baseUrl = 'http://10.2.8.30:3000';
 
   /// Create a new borrow request
   /// Connects to: POST /borrow-request
@@ -99,8 +98,12 @@ class UserBorrowService {
       final prefs = await SharedPreferences.getInstance();
       final userStr = prefs.getString('current_user');
       if (userStr != null) {
-        return jsonDecode(userStr) as Map<String, dynamic>;
+        final user = jsonDecode(userStr) as Map<String, dynamic>;
+        debugPrint('👤 Current user data: $user');
+        debugPrint('👤 User ID: ${user['id']} or ${user['user_id']}');
+        return user;
       }
+      debugPrint('⚠️ No user data found in SharedPreferences');
       return null;
     } catch (e) {
       debugPrint('❌ Error getting current user: $e');
@@ -198,29 +201,56 @@ class UserBorrowService {
     bool includeReturned = true,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = prefs.getStringList('user_borrow_history') ?? [];
+      // Get user ID if not provided
+      String? uid = userId;
+      if (uid == null) {
+        final user = await getCurrentUser();
+        // Try both 'id' and 'user_id' fields
+        uid = user?['id']?.toString() ?? user?['user_id']?.toString();
+        debugPrint('🔍 Retrieved user ID from getCurrentUser: $uid');
+      }
 
-      List<Map<String, dynamic>> requests = data
-          .map((e) => jsonDecode(e) as Map<String, dynamic>)
-          .toList();
+      if (uid == null) {
+        debugPrint('⚠️ No user ID available');
+        return [];
+      }
 
-      // Filter by status if provided
+      debugPrint('🔄 Fetching borrow requests from backend for user $uid...');
+
+      // Build the URL with optional status filter
+      String url = '$_baseUrl/users/$uid/borrow-requests';
       if (status != null) {
-        requests = requests
-            .where((req) => req['status']?.toString() == status)
+        url += '?status=$status';
+      }
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        debugPrint('✅ Fetched ${data.length} borrow requests from backend');
+
+        // Convert to List<Map<String, dynamic>>
+        List<Map<String, dynamic>> requests = data
+            .map((e) => e as Map<String, dynamic>)
             .toList();
-      }
 
-      // Filter out returned items if specified
-      if (!includeReturned) {
-        requests = requests.where((req) {
-          final returnedAt = req['returnedAt'];
-          return returnedAt == null || returnedAt.toString().isEmpty;
-        }).toList();
-      }
+        // Filter out returned items if specified
+        if (!includeReturned) {
+          requests = requests.where((req) {
+            final reqStatus = req['status']?.toString().toLowerCase();
+            return reqStatus != 'returned';
+          }).toList();
+        }
 
-      return requests;
+        return requests;
+      } else {
+        debugPrint('❌ Failed to fetch borrow requests: ${response.statusCode}');
+        debugPrint('Response: ${response.body}');
+        return [];
+      }
     } catch (e) {
       debugPrint('❌ Error loading user borrow requests: $e');
       return [];
@@ -237,66 +267,41 @@ class UserBorrowService {
   /// }
   Future<Map<String, int>> getUserStats({String? userId}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final list = prefs.getStringList('user_borrow_history') ?? [];
+      // Get user ID if not provided
+      String? uid = userId;
+      if (uid == null) {
+        final user = await getCurrentUser();
+        uid = user?['id']?.toString() ?? user?['user_id']?.toString();
+      }
+
+      if (uid == null) {
+        debugPrint('⚠️ No user ID available for stats');
+        return {'currently': 0, 'late': 0, 'history': 0, 'ontime': 0};
+      }
+
+      // Fetch borrow requests from backend
+      final requests = await getUserBorrowRequests(userId: uid);
 
       int currentlyRenting = 0;
       int lateReturns = 0;
       int onTimeReturns = 0;
       int rentHistory = 0;
 
-      final df = DateFormat('dd/MM/yy');
+      for (final request in requests) {
+        final status = (request['status'] ?? '').toString();
 
-      for (final s in list) {
-        Map<String, dynamic> r;
-        try {
-          r = jsonDecode(s) as Map<String, dynamic>;
-        } catch (_) {
-          continue;
-        }
-
-        final itm = r['item'];
-        if (itm is! Map<String, dynamic>) continue;
-
-        final status = (r['status'] ?? '').toString();
-
-        DateTime? plannedReturn;
-        final plannedReturnStr = (r['returnDate'] ?? '').toString();
-        if (plannedReturnStr.isNotEmpty) {
-          try {
-            plannedReturn = df.parse(plannedReturnStr);
-          } catch (_) {}
-        }
-
-        DateTime? returnedAt;
-        final returnedAtStr = (r['returnedAt'] ?? '').toString();
-        if (returnedAtStr.isNotEmpty) {
-          try {
-            returnedAt = DateTime.parse(returnedAtStr);
-          } catch (_) {}
-        }
-
-        final isFlaggedLate = (r['lateReturn'] ?? false) == true;
-
-        if (returnedAt != null) {
+        // Count based on status
+        if (status == 'Approved') {
+          currentlyRenting += 1;
+        } else if (status == 'Returned') {
           rentHistory += 1;
-
-          final bool isLateByDate =
-              plannedReturn != null && returnedAt.isAfter(plannedReturn);
-          final bool explicitLate =
-              (r['status']?.toString() == 'Late Return') || isFlaggedLate;
-
-          if (isLateByDate || (plannedReturn == null && explicitLate)) {
-            lateReturns += 1;
-          } else {
-            onTimeReturns += 1;
-          }
-        } else {
-          if (status == 'Approved') {
-            currentlyRenting += 1;
-          }
+          onTimeReturns += 1; // Assume on-time for now
         }
       }
+
+      debugPrint(
+        '📊 User stats: currently=$currentlyRenting, late=$lateReturns, history=$rentHistory, ontime=$onTimeReturns',
+      );
 
       return {
         'currently': currentlyRenting,
@@ -313,23 +318,28 @@ class UserBorrowService {
   /// Check if user has any active late returns
   Future<bool> hasActiveLateReturn({String? userId}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final list = prefs.getStringList('user_borrow_history') ?? [];
+      // Get user ID if not provided
+      String? uid = userId;
+      if (uid == null) {
+        final user = await getCurrentUser();
+        uid = user?['id']?.toString() ?? user?['user_id']?.toString();
+      }
 
-      for (final s in list) {
-        try {
-          final r = jsonDecode(s) as Map<String, dynamic>;
-          final status = (r['status'] ?? '').toString();
-          final returnedAt = r['returnedAt'];
-          final late = (r['lateReturn'] ?? false) == true;
+      if (uid == null) {
+        debugPrint('⚠️ No user ID available for late check');
+        return false;
+      }
 
-          if (status == 'Approved' &&
-              (returnedAt == null || returnedAt.toString().isEmpty) &&
-              late) {
-            return true;
-          }
-        } catch (_) {
-          continue;
+      // Fetch borrow requests from backend
+      final requests = await getUserBorrowRequests(userId: uid);
+
+      // Check if any approved request is marked as late
+      for (final request in requests) {
+        final status = (request['status'] ?? '').toString();
+        final late = (request['lateReturn'] ?? false) == true;
+
+        if (status == 'Approved' && late) {
+          return true;
         }
       }
 
@@ -341,40 +351,27 @@ class UserBorrowService {
   }
 
   /// Cancel a pending borrow request
-  /// or PATCH /api/borrow-requests/{requestId} with status: "Cancelled"
-  Future<bool> cancelBorrowRequest({
-    required String requestId,
-    String? userId,
-  }) async {
+  /// PATCH /borrow-requests/{requestId} with status: "Canceled"
+  Future<bool> cancelBorrowRequest({required String requestId}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = prefs.getStringList('user_borrow_history') ?? [];
-      final allRequests = data.map((e) => jsonDecode(e)).toList();
+      debugPrint('🔄 Canceling borrow request $requestId...');
 
-      // Find and remove the request
-      final index = allRequests.indexWhere((req) => req['id'] == requestId);
-      if (index == -1) {
-        debugPrint('❌ Request not found: $requestId');
-        return false;
-      }
-
-      // Only allow cancellation of pending requests
-      if (allRequests[index]['status'] != 'Pending') {
-        debugPrint('❌ Cannot cancel non-pending request');
-        return false;
-      }
-
-      allRequests.removeAt(index);
-
-      await prefs.setStringList(
-        'user_borrow_history',
-        allRequests.map((e) => jsonEncode(e)).toList(),
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/borrow-requests/$requestId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'status': 'Canceled'}),
       );
 
-      debugPrint('✅ Request cancelled: $requestId');
-      return true;
+      if (response.statusCode == 200) {
+        debugPrint('✅ Borrow request $requestId canceled successfully');
+        return true;
+      } else {
+        debugPrint('❌ Failed to cancel request: ${response.statusCode}');
+        debugPrint('Response: ${response.body}');
+        return false;
+      }
     } catch (e) {
-      debugPrint('❌ Error cancelling request: $e');
+      debugPrint('❌ Error canceling borrow request: $e');
       return false;
     }
   }
