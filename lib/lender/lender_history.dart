@@ -197,8 +197,9 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
                             leading: item is Map<String, dynamic>
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: Image.asset(
-                                      item['imageUrl'] ?? '',
+                                    child: Image.network(
+                                      item['imageUrl'] ??
+                                          'http://10.2.8.30:3000/images/default.png',
                                       width: 56,
                                       height: 56,
                                       fit: BoxFit.cover,

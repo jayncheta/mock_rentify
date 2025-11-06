@@ -171,7 +171,7 @@ class _BorrowRequestScreenState extends State<BorrowRequestScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(item.imageUrl, height: 180),
+                  child: Image.network(item.imageUrl, height: 180),
                 ),
                 const SizedBox(height: 20),
 

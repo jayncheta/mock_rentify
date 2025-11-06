@@ -185,7 +185,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(req['item']['imageUrl'], height: 150),
+            Image.network(req['item']['imageUrl'], height: 150),
             const SizedBox(height: 10),
             Text(
               'Borrower name: ${req['borrowerName']}',
@@ -359,7 +359,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
               child: ListTile(
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
+                  child: Image.network(
                     item['imageUrl'],
                     width: 60,
                     height: 60,

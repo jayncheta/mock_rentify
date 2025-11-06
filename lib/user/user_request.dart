@@ -321,7 +321,7 @@ class _UserRequestPageState extends State<UserRequestPage> {
                     final String itemImage =
                         itemData['item_image']?.toString() ??
                         itemData['item']?['imageUrl']?.toString() ??
-                        'assets/images/macbook.png';
+                        'http://10.2.8.30:3000/images/default.png';
 
                     final status = (itemData['status'] ?? 'Pending').toString();
                     final reason =
@@ -365,7 +365,7 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                 margin: const EdgeInsets.all(10),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: Image.asset(
+                                  child: Image.network(
                                     itemImage,
                                     width: 80,
                                     height: 80,
@@ -373,8 +373,8 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                     errorBuilder: (context, error, stackTrace) {
                                       return ClipRRect(
                                         borderRadius: BorderRadius.circular(12),
-                                        child: Image.asset(
-                                          'assets/images/macbook.png',
+                                        child: Image.network(
+                                          'http://10.2.8.30:3000/images/default.png',
                                           width: 80,
                                           height: 80,
                                           fit: BoxFit.cover,

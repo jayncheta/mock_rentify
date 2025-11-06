@@ -72,20 +72,36 @@ class ItemsService {
   String _mapItemToImage(String itemName) {
     final name = itemName.toLowerCase();
 
-    if (name.contains('ipad') || name.contains('tablet')) {
-      return 'assets/images/ipad.png';
+    if (name.contains('ipad air')) {
+      return 'http://10.2.8.30:3000/images/ipad_air.png';
+    } else if (name.contains('ipad pro')) {
+      return 'http://10.2.8.30:3000/images/ipad_pro.png';
+    } else if (name.contains('ipad') || name.contains('tablet')) {
+      return 'http://10.2.8.30:3000/images/ipad_air.png';
+    } else if (name.contains('macbook air')) {
+      return 'http://10.2.8.30:3000/images/macbook_air.png';
+    } else if (name.contains('macbook pro')) {
+      return 'http://10.2.8.30:3000/images/macbook_pro.png';
     } else if (name.contains('macbook') || name.contains('mac')) {
-      return 'assets/images/macbook.png';
+      return 'http://10.2.8.30:3000/images/macbook_pro.png';
+    } else if (name.contains('dell') || name.contains('xps')) {
+      return 'http://10.2.8.30:3000/images/dell_xps.png';
+    } else if (name.contains('hp') || name.contains('spectre')) {
+      return 'http://10.2.8.30:3000/images/hp_spectre.png';
     } else if (name.contains('windows') ||
         name.contains('laptop') ||
         name.contains('pc')) {
-      return 'assets/images/windows_laptop.png';
+      return 'http://10.2.8.30:3000/images/dell_xps.png';
+    } else if (name.contains('blue yeti') || name.contains('yeti')) {
+      return 'http://10.2.8.30:3000/images/blue_yeti.png';
+    } else if (name.contains('rode') || name.contains('nt')) {
+      return 'http://10.2.8.30:3000/images/rode_nt.png';
     } else if (name.contains('mic') || name.contains('microphone')) {
-      return 'assets/images/microphone.png';
+      return 'http://10.2.8.30:3000/images/blue_yeti.png';
     }
 
     // Default fallback
-    return 'assets/images/ipad.png';
+    return 'http://10.2.8.30:3000/images/default.png';
   }
 
   // Load disabled flags from persistent storage and apply to current items

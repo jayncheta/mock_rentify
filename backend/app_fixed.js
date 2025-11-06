@@ -8,6 +8,9 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Serve images from the 'images' folder as static files
+app.use('/images', express.static('images'));
+
 // -------- DATABASE CONNECTION --------
 const db = mysql.createConnection({
     host: 'localhost',
@@ -60,9 +63,7 @@ app.post('/borrow-request', (req, res) => {
 });
 
 // -------- GET ALL BORROW REQUESTS --------
-// Your Flutter app should use this endpoint!
 app.get('/borrow-requests', (req, res) => {
-    // Fix the JOINs and column names to match your actual MySQL schema
     db.query(`
         SELECT 
             br.request_id,
@@ -75,7 +76,8 @@ app.get('/borrow-requests', (req, res) => {
             br.lender_response,
             i.item_name,
             i.description AS item_description,
-            i.availability_status
+            i.availability_status,
+            i.image_url
         FROM borrow_requests br
         LEFT JOIN items i ON br.item_id = i.item_id
         ORDER BY br.request_id DESC
@@ -105,7 +107,8 @@ app.get('/users/:userId/borrow-requests', (req, res) => {
             br.staff_processed_return_id,
             i.item_name,
             i.description AS item_description,
-            i.availability_status
+            i.availability_status,
+            i.image_url
         FROM borrow_requests br
         LEFT JOIN items i ON br.item_id = i.item_id
         WHERE br.borrower_id = ?

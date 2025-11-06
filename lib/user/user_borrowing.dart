@@ -113,7 +113,7 @@ class _UserBorrowingScreenState extends State<UserBorrowingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(child: Image.asset(widget.item.imageUrl, height: 180)),
+                Center(child: Image.network(widget.item.imageUrl, height: 180)),
                 const SizedBox(height: 15),
                 const Divider(thickness: 1.5, color: primaryColor),
                 const SizedBox(height: 20),
