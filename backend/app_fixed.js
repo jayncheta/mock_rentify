@@ -305,5 +305,5 @@ app.delete('/users/:userId/favorites/:itemId', (req, res) => {
 const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Accessible at http://10.2.8.30:${PORT}`);
+    console.log(`Accessible at http://172.27.9.184:${PORT}`);
 });

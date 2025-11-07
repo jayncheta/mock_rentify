@@ -322,7 +322,7 @@ class _UserRequestPageState extends State<UserRequestPage> {
                         itemData['image_url']?.toString() ??
                         itemData['item_image']?.toString() ??
                         itemData['item']?['imageUrl']?.toString() ??
-                        'http://10.2.8.30:3000/images/default.png';
+                        'http://172.27.9.184:3000/images/default.png';
 
                     final status = (itemData['status'] ?? 'Pending').toString();
                     final reason =
@@ -375,7 +375,7 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                       return ClipRRect(
                                         borderRadius: BorderRadius.circular(12),
                                         child: Image.network(
-                                          'http://10.2.8.30:3000/images/default.png',
+                                          'http://172.27.9.184:3000/images/default.png',
                                           width: 80,
                                           height: 80,
                                           fit: BoxFit.cover,

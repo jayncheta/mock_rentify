@@ -199,7 +199,7 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
                                     borderRadius: BorderRadius.circular(8),
                                     child: Image.network(
                                       item['imageUrl'] ??
-                                          'http://10.2.8.30:3000/images/default.png',
+                                          'http://172.27.9.184:3000/images/default.png',
                                       width: 56,
                                       height: 56,
                                       fit: BoxFit.cover,

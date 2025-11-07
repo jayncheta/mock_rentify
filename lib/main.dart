@@ -363,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _showAlertDialog(
         context,
         'Connection Error',
-        'Could not connect to server. Please make sure the backend is running at http://10.2.8.30:3000',
+        'Could not connect to server. Please make sure the backend is running at http://172.27.9.184:3000',
       );
     }
   }
@@ -570,16 +570,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
         // Signup successful
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Welcome, ${userData['username']}! Account created successfully.',
-            ),
-          ),
+        // Show welcome popup dialog
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Welcome to Rentify!'),
+              content: Text(
+                'Renting has never been easier, ${userData['username']}!',
+                style: const TextStyle(fontSize: 16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close dialog
+                    // Navigate to browse screen (default user role)
+                    Navigator.pushReplacementNamed(
+                      context,
+                      BrowseScreen.routeName,
+                    );
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
         );
-
-        // Navigate to browse screen (default user role)
-        Navigator.pushReplacementNamed(context, BrowseScreen.routeName);
       } else {
         // Signup failed
         if (!mounted) return;
@@ -598,7 +614,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _showAlertDialog(
         context,
         'Connection Error',
-        'Could not connect to server. Please make sure the backend is running at http://10.2.8.30:3000',
+        'Could not connect to server. Please make sure the backend is running at http://172.27.9.184:3000',
       );
     }
   }

@@ -15,7 +15,7 @@ class ItemsService {
   final ValueNotifier<List<Item>> items = ValueNotifier<List<Item>>([]);
 
   // Backend API base URL
-  static const String _baseUrl = 'http://10.2.8.30:3000';
+  static const String _baseUrl = 'http://172.27.9.184:3000';
 
   // --- Persistence keys ---
   static const String _disabledIdsKey = 'disabled_item_ids';
@@ -73,35 +73,35 @@ class ItemsService {
     final name = itemName.toLowerCase();
 
     if (name.contains('ipad air')) {
-      return 'http://10.2.8.30:3000/images/ipad_air.png';
+      return 'http://172.27.9.184:3000/images/ipad_air.png';
     } else if (name.contains('ipad pro')) {
-      return 'http://10.2.8.30:3000/images/ipad_pro.png';
+      return 'http://172.27.9.184:3000/images/ipad_pro.png';
     } else if (name.contains('ipad') || name.contains('tablet')) {
-      return 'http://10.2.8.30:3000/images/ipad_air.png';
+      return 'http://172.27.9.184:3000/images/ipad_air.png';
     } else if (name.contains('macbook air')) {
-      return 'http://10.2.8.30:3000/images/macbook_air.png';
+      return 'http://172.27.9.184:3000/images/macbook_air.png';
     } else if (name.contains('macbook pro')) {
-      return 'http://10.2.8.30:3000/images/macbook_pro.png';
+      return 'http://172.27.9.184:3000/images/macbook_pro.png';
     } else if (name.contains('macbook') || name.contains('mac')) {
-      return 'http://10.2.8.30:3000/images/macbook_pro.png';
+      return 'http://172.27.9.184:3000/images/macbook_pro.png';
     } else if (name.contains('dell') || name.contains('xps')) {
-      return 'http://10.2.8.30:3000/images/dell_xps.png';
+      return 'http://172.27.9.184:3000/images/dell_xps.png';
     } else if (name.contains('hp') || name.contains('spectre')) {
-      return 'http://10.2.8.30:3000/images/hp_spectre.png';
+      return 'http://172.27.9.184:3000/images/hp_spectre.png';
     } else if (name.contains('windows') ||
         name.contains('laptop') ||
         name.contains('pc')) {
-      return 'http://10.2.8.30:3000/images/dell_xps.png';
+      return 'http://172.27.9.184:3000/images/dell_xps.png';
     } else if (name.contains('blue yeti') || name.contains('yeti')) {
-      return 'http://10.2.8.30:3000/images/blue_yeti.png';
+      return 'http://172.27.9.184:3000/images/blue_yeti.png';
     } else if (name.contains('rode') || name.contains('nt')) {
-      return 'http://10.2.8.30:3000/images/rode_nt.png';
+      return 'http://172.27.9.184:3000/images/rode_nt.png';
     } else if (name.contains('mic') || name.contains('microphone')) {
-      return 'http://10.2.8.30:3000/images/blue_yeti.png';
+      return 'http://172.27.9.184:3000/images/blue_yeti.png';
     }
 
     // Default fallback
-    return 'http://10.2.8.30:3000/images/default.png';
+    return 'http://172.27.9.184:3000/images/default.png';
   }
 
   // Load disabled flags from persistent storage and apply to current items
