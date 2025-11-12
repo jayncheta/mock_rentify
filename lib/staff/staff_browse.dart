@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../browse.dart' show Item, primaryColor;
+import '../browse.dart' show Item;
 import '../services/items_service.dart' show ItemsService;
 import 'add.dart' show AddItemsScreen;
 
@@ -19,9 +19,16 @@ class _StaffBrowseScreenState extends State<StaffBrowseScreen> {
   @override
   void initState() {
     super.initState();
-    // Ensure disabled states are applied when staff view opens
-    ItemsService.instance.loadDisabledFlags();
-    ItemsService.instance.loadBorrowedFlags();
+    // Fetch items from backend database
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    // Fetch items from backend
+    await ItemsService.instance.fetchItemsFromBackend();
+    // Load disabled and borrowed flags
+    await ItemsService.instance.loadDisabledFlags();
+    await ItemsService.instance.loadBorrowedFlags();
   }
 
   @override
@@ -51,41 +58,87 @@ class _StaffBrowseScreenState extends State<StaffBrowseScreen> {
           style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
         ),
         actions: [
-          Container(
-            decoration: BoxDecoration(
-              border: const Border(
-                top: BorderSide(color: Colors.white70, width: 1),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onSelected: (value) {
+              switch (value) {
+                case 'staff':
+                  Navigator.pushNamed(context, AddItemsScreen.routeName);
+                  break;
+                case 'return':
+                  Navigator.pushNamed(context, '/staff/return');
+                  break;
+                case 'history':
+                  Navigator.pushNamed(context, '/staff/history');
+                  break;
+                case 'browse':
+                  // Already on browse screen
+                  break;
+                case 'logout':
+                  showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(
+                        'Logout',
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                      ),
+                      content: Text(
+                        'Are you sure you want to logout?',
+                        style: GoogleFonts.poppins(),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text('Cancel', style: GoogleFonts.poppins()),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Logged out')),
+                            );
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/',
+                              (route) => false,
+                            );
+                          },
+                          child: Text(
+                            'Logout',
+                            style: GoogleFonts.poppins(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                  break;
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'staff',
+                child: Text('Staff', style: GoogleFonts.poppins()),
               ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  AddItemsScreen.routeName,
-                  (route) => false,
-                );
-              },
-              icon: const Icon(Icons.arrow_back, size: 16),
-              label: Text(
-                'Back to Staff',
-                style: GoogleFonts.poppins(fontSize: 12),
+              PopupMenuItem<String>(
+                value: 'return',
+                child: Text('Return', style: GoogleFonts.poppins()),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                minimumSize: const Size(0, 0),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: const VisualDensity(
-                  horizontal: -4,
-                  vertical: -4,
+              PopupMenuItem<String>(
+                value: 'history',
+                child: Text('History', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'browse',
+                child: Text('Browse', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Text(
+                  'Logout',
+                  style: GoogleFonts.poppins(color: Colors.red),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
               ),
-            ),
+            ],
           ),
           const SizedBox(width: 5),
         ],
@@ -219,7 +272,7 @@ class StaffItemCard extends StatelessWidget {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: Image.asset(
+                    child: Image.network(
                       item.imageUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) =>

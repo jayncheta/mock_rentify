@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../browse.dart' show Item;
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -15,7 +13,7 @@ class ItemsService {
   final ValueNotifier<List<Item>> items = ValueNotifier<List<Item>>([]);
 
   // Backend API base URL
-  static const String _baseUrl = 'http://172.27.9.184:3000';
+  static const String _baseUrl = 'http://10.2.8.21:3000';
 
   // --- Persistence keys ---
   static const String _disabledIdsKey = 'disabled_item_ids';
@@ -72,36 +70,50 @@ class ItemsService {
   String _mapItemToImage(String itemName) {
     final name = itemName.toLowerCase();
 
-    if (name.contains('ipad air')) {
-      return 'http://172.27.9.184:3000/images/ipad_air.png';
+    // Try exact filename match first (convert spaces to underscores, remove special chars)
+    final fileName = name
+        .replaceAll(' ', '_')
+        .replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    final exactMatch = 'http://10.2.8.21:3000/images/$fileName.png';
+
+    // Available images: blue_yeti, dell_xps, hp_spectre, hyperx_cloud_2, ipad_air,
+    // ipad_pro, iphone17_pro_max, macbook_air, macbook_pro, rode_nt
+
+    // Check for exact matches
+    if (name.contains('hyperx') || name.contains('cloud')) {
+      return 'http://10.2.8.21:3000/images/hyperX_cloud_2.png';
+    } else if (name.contains('ipad air')) {
+      return 'http://10.2.8.21:3000/images/ipad_air.png';
     } else if (name.contains('ipad pro')) {
-      return 'http://172.27.9.184:3000/images/ipad_pro.png';
+      return 'http://10.2.8.21:3000/images/ipad_pro.png';
     } else if (name.contains('ipad') || name.contains('tablet')) {
-      return 'http://172.27.9.184:3000/images/ipad_air.png';
+      return 'http://10.2.8.21:3000/images/ipad_air.png';
     } else if (name.contains('macbook air')) {
-      return 'http://172.27.9.184:3000/images/macbook_air.png';
+      return 'http://10.2.8.21:3000/images/macbook_air.png';
     } else if (name.contains('macbook pro')) {
-      return 'http://172.27.9.184:3000/images/macbook_pro.png';
+      return 'http://10.2.8.21:3000/images/macbook_pro.png';
     } else if (name.contains('macbook') || name.contains('mac')) {
-      return 'http://172.27.9.184:3000/images/macbook_pro.png';
+      return 'http://10.2.8.21:3000/images/macbook_pro.png';
     } else if (name.contains('dell') || name.contains('xps')) {
-      return 'http://172.27.9.184:3000/images/dell_xps.png';
+      return 'http://10.2.8.21:3000/images/dell_xps.png';
     } else if (name.contains('hp') || name.contains('spectre')) {
-      return 'http://172.27.9.184:3000/images/hp_spectre.png';
+      return 'http://10.2.8.21:3000/images/hp_spectre.png';
     } else if (name.contains('windows') ||
         name.contains('laptop') ||
         name.contains('pc')) {
-      return 'http://172.27.9.184:3000/images/dell_xps.png';
+      return 'http://10.2.8.21:3000/images/dell_xps.png';
     } else if (name.contains('blue yeti') || name.contains('yeti')) {
-      return 'http://172.27.9.184:3000/images/blue_yeti.png';
+      return 'http://10.2.8.21:3000/images/blue_yeti.png';
     } else if (name.contains('rode') || name.contains('nt')) {
-      return 'http://172.27.9.184:3000/images/rode_nt.png';
+      return 'http://10.2.8.21:3000/images/rode_nt.png';
     } else if (name.contains('mic') || name.contains('microphone')) {
-      return 'http://172.27.9.184:3000/images/blue_yeti.png';
+      return 'http://10.2.8.21:3000/images/blue_yeti.png';
+    } else if (name.contains('iphone') || name.contains('phone')) {
+      return 'http://10.2.8.21:3000/images/iphone17_pro_max.png';
     }
 
-    // Default fallback
-    return 'http://172.27.9.184:3000/images/default.png';
+    // Default fallback - try exact filename match
+    return exactMatch;
   }
 
   // Load disabled flags from persistent storage and apply to current items
@@ -181,38 +193,54 @@ class ItemsService {
   // Add a new item
   Future<void> addItem({
     required String title,
+    String description = '',
     required File? imageFile,
     String? assetImagePath,
   }) async {
     try {
-      // Generate a unique ID
-      final id = DateTime.now().millisecondsSinceEpoch.toString();
+      debugPrint('🔄 Adding item "$title" to backend...');
 
-      // Save image to app directory and get its path
-      String imageUrl = '';
-      if (assetImagePath != null && assetImagePath.isNotEmpty) {
-        imageUrl = assetImagePath;
-      } else if (imageFile != null) {
-        final appDir = await getApplicationDocumentsDirectory();
-        final fileName = '${id}${path.extension(imageFile.path)}';
-        final savedImage = await imageFile.copy('${appDir.path}/$fileName');
-        imageUrl = savedImage.path;
-      }
+      // Map item name to image URL from backend/images
+      final imageUrl = _mapItemToImage(title);
 
-      // Create new item
-      final newItem = Item(
-        id: id,
-        title: title,
-        imageUrl: imageUrl,
-        statusColor: 'Available', // Default status
+      // Add to backend database - using lender_id = 1 as default
+      final response = await http.post(
+        Uri.parse('$_baseUrl/items'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'item_name': title,
+          'item_description': description,
+          'availability_status': 'Available',
+          'lender_id': 1, // Default lender
+        }),
       );
 
-      // Add to list
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to add item to database: ${response.body}');
+      }
+
+      final responseData = jsonDecode(response.body);
+      final itemId = responseData['item_id'].toString();
+
+      debugPrint('✅ Item added to backend with ID: $itemId');
+
+      // Create new item for local list
+      final newItem = Item(
+        id: itemId,
+        title: title,
+        imageUrl: imageUrl,
+        statusColor: 'Available',
+      );
+
+      // Add to local list
       final currentItems = List<Item>.from(items.value);
       currentItems.add(newItem);
       items.value = currentItems;
     } catch (e) {
-      debugPrint('Error adding item: ${e}');
+      debugPrint('❌ Error adding item: $e');
       rethrow;
     }
   }
@@ -220,6 +248,28 @@ class ItemsService {
   // Update an existing item
   Future<void> updateItem(Item updatedItem) async {
     try {
+      debugPrint('🔄 Updating item ${updatedItem.id} in backend...');
+
+      // Update in backend database
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/items/${updatedItem.id}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'item_name': updatedItem.title,
+          'item_description': updatedItem.description,
+          'availability_status': updatedItem.isDisabled
+              ? 'Disabled'
+              : 'Available',
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update item in database');
+      }
+
+      debugPrint('✅ Item updated in backend');
+
+      // Update local list
       final currentItems = List<Item>.from(items.value);
       final index = currentItems.indexWhere(
         (item) => item.id == updatedItem.id,
@@ -227,14 +277,12 @@ class ItemsService {
 
       if (index == -1) throw Exception('Item not found');
 
-      // Preserve persisted disabled flags if not explicitly changed upstream
-      // Write the updated item back; disabled flag will be persisted via _saveDisabledFlags()
       currentItems[index] = updatedItem;
       items.value = currentItems;
       await _saveDisabledFlags();
       await _saveBorrowedFlags();
     } catch (e) {
-      debugPrint('Error updating item: ${e}');
+      debugPrint('❌ Error updating item: $e');
       rethrow;
     }
   }
@@ -247,13 +295,35 @@ class ItemsService {
 
       if (index == -1) throw Exception('Item not found');
 
+      final newDisabledStatus = !currentItems[index].isDisabled;
+
+      debugPrint(
+        '🔄 Toggling item $itemId status to ${newDisabledStatus ? "Disabled" : "Available"}',
+      );
+
+      // Update in backend database
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/items/$itemId/status'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'availability_status': newDisabledStatus ? 'Disabled' : 'Available',
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update item status in database');
+      }
+
+      debugPrint('✅ Item status updated in backend');
+
+      // Update local list
       currentItems[index] = currentItems[index].copyWith(
-        isDisabled: !currentItems[index].isDisabled,
+        isDisabled: newDisabledStatus,
       );
       items.value = currentItems;
       await _saveDisabledFlags();
     } catch (e) {
-      debugPrint('Error toggling item status: ${e}');
+      debugPrint('❌ Error toggling item status: $e');
       rethrow;
     }
   }

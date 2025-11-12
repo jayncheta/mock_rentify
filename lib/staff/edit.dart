@@ -41,10 +41,17 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
-    _filteredItems = ItemsService.instance.getItems();
-    // Ensure flags are applied so status reflects real state
-    ItemsService.instance.loadDisabledFlags();
-    ItemsService.instance.loadBorrowedFlags();
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    // Fetch items from backend database
+    await ItemsService.instance.fetchItemsFromBackend();
+    await ItemsService.instance.loadDisabledFlags();
+    await ItemsService.instance.loadBorrowedFlags();
+    setState(() {
+      _filteredItems = ItemsService.instance.getItems();
+    });
   }
 
   void _onSearchChanged() {
@@ -117,78 +124,92 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
               title: const SizedBox.shrink(),
               centerTitle: false,
               actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/staff/return');
-                  },
-                  child: Text(
-                    'Return',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/staff/history');
-                  },
-                  child: Text(
-                    'History',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/staff/browse');
-                  },
-                  child: Text(
-                    'Browse',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(
-                          'Logout',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        content: Text(
-                          'Are you sure you want to logout from this device?',
-                          style: GoogleFonts.poppins(),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text('Cancel', style: GoogleFonts.poppins()),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Logged out')),
-                              );
-                              Navigator.pushNamedAndRemoveUntil(
-                                context,
-                                '/',
-                                (route) => false,
-                              );
-                            },
-                            child: Text(
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.menu, color: Colors.black),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'staff':
+                        Navigator.pushNamed(context, AddItemsScreen.routeName);
+                        break;
+                      case 'return':
+                        Navigator.pushNamed(context, '/staff/return');
+                        break;
+                      case 'history':
+                        Navigator.pushNamed(context, '/staff/history');
+                        break;
+                      case 'browse':
+                        Navigator.pushNamed(context, '/staff/browse');
+                        break;
+                      case 'logout':
+                        showDialog<void>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(
                               'Logout',
-                              style: GoogleFonts.poppins(color: Colors.red),
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
+                            content: Text(
+                              'Are you sure you want to logout from this device?',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(
+                                  'Cancel',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Logged out')),
+                                  );
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    '/',
+                                    (route) => false,
+                                  );
+                                },
+                                child: Text(
+                                  'Logout',
+                                  style: GoogleFonts.poppins(color: Colors.red),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    );
+                        );
+                        break;
+                    }
                   },
-                  child: Text(
-                    'Logout',
-                    style: GoogleFonts.poppins(color: Colors.red),
-                  ),
+                  itemBuilder: (BuildContext context) => [
+                    PopupMenuItem<String>(
+                      value: 'staff',
+                      child: Text('Staff', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'return',
+                      child: Text('Return', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'history',
+                      child: Text('History', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'browse',
+                      child: Text('Browse', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'logout',
+                      child: Text(
+                        'Logout',
+                        style: GoogleFonts.poppins(color: Colors.red),
+                      ),
+                    ),
+                  ],
                 ),
               ],
               backgroundColor: Colors.white,
@@ -270,7 +291,7 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                               leading: item.imageUrl.isNotEmpty
                                   ? ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
-                                      child: Image.asset(
+                                      child: Image.network(
                                         item.imageUrl,
                                         width: 48,
                                         height: 48,
@@ -499,7 +520,7 @@ class _EditItemsScreenState extends State<EditItemsScreen> {
                       ? Image.network(_imageFile!.path, fit: BoxFit.cover)
                       : Image.file(File(_imageFile!.path), fit: BoxFit.cover))
                 : (_editingItem != null && _editingItem!.imageUrl.isNotEmpty
-                      ? Image.asset(
+                      ? Image.network(
                           _editingItem!.imageUrl,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) =>

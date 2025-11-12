@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/items_service.dart';
+import 'package:http/http.dart' as http;
+import 'add.dart' show AddItemsScreen;
 
 class StaffHistoryPage extends StatefulWidget {
   static const String routeName = '/staff/history';
@@ -31,64 +31,41 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
   }
 
   Future<void> _loadHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    final history = <Map<String, dynamic>>[];
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.21:3000/borrow-requests'),
+      );
 
-    for (final s in list) {
-      try {
-        final rec = jsonDecode(s) as Map<String, dynamic>;
-        final status = (rec['status'] ?? '').toString();
-        final item = rec['item'];
-        final returnedAt = rec['returnedAt'];
+      if (response.statusCode == 200) {
+        final List<dynamic> requests = jsonDecode(response.body);
+        final history = <Map<String, dynamic>>[];
 
-        // Include any record that has actually been rented:
-        // - Active rentals: status Approved or Late Return (returnedAt is null)
-        // - Completed rentals: any record with returnedAt set
-        final bool isActiveRental =
-            (status == 'Approved' || status == 'Late Return') &&
-            (returnedAt == null ||
-                (returnedAt is String && returnedAt.isEmpty));
-        final bool isCompletedRental =
-            returnedAt != null &&
-            (!(returnedAt is String) || returnedAt.isNotEmpty);
-
-        if (item is Map<String, dynamic> &&
-            (isActiveRental || isCompletedRental)) {
-          history.add(rec);
+        for (var req in requests) {
+          // Only show approved or completed rentals
+          if (req['status'] == 'Approved' || req['returned_at'] != null) {
+            history.add({
+              'item': {
+                'id': req['item_id']?.toString() ?? '',
+                'itemName': req['item_name'] ?? 'Unknown Item',
+              },
+              'borrowerName': req['borrower_name'] ?? 'Unknown',
+              'borrowDate': req['borrow_date'] ?? '',
+              'returnDate': req['return_date'] ?? '',
+              'returnedAt': req['returned_at'],
+              'status': req['status'] ?? 'Pending',
+            });
+          }
         }
-      } catch (_) {
-        // ignore bad record
+
+        if (mounted) {
+          setState(() {
+            _allHistory = history;
+            _filteredHistory = history;
+          });
+        }
       }
-    }
-
-    // Sort by most recent activity: prefer approvedAt, then borrowDate, then insertion order
-    DateTime? parseDate(dynamic v) {
-      if (v == null) return null;
-      if (v is DateTime) return v;
-      final s = v.toString();
-      try {
-        return DateTime.parse(s);
-      } catch (_) {
-        return null;
-      }
-    }
-
-    history.sort((a, b) {
-      final aApproved = parseDate(a['approvedAt']);
-      final bApproved = parseDate(b['approvedAt']);
-      final aBorrow = aApproved ?? parseDate(a['borrowDate']);
-      final bBorrow = bApproved ?? parseDate(b['borrowDate']);
-      final aTime = aBorrow?.millisecondsSinceEpoch ?? 0;
-      final bTime = bBorrow?.millisecondsSinceEpoch ?? 0;
-      return bTime.compareTo(aTime);
-    });
-
-    if (mounted) {
-      setState(() {
-        _allHistory = history;
-        _filteredHistory = history;
-      });
+    } catch (e) {
+      debugPrint('Error loading history: $e');
     }
   }
 
@@ -113,54 +90,45 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: ItemsService.instance.items,
-      builder: (context, items, _) {
-        // Trigger reload when items change (e.g., when borrowed status updates)
-        _loadHistory();
-
-        return Scaffold(
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: AppBar(
           backgroundColor: Colors.white,
-          appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(60),
-            child: AppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: Colors.black),
-              leading: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: CircleAvatar(
-                  backgroundColor: Colors.grey[200],
-                  child: IconButton(
-                    icon: const Icon(Icons.person),
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/staff/dashboard');
-                    },
-                  ),
-                ),
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.black),
+          leading: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: CircleAvatar(
+              backgroundColor: Colors.grey[200],
+              child: IconButton(
+                icon: const Icon(Icons.person),
+                onPressed: () {
+                  Navigator.pushNamed(context, '/staff/dashboard');
+                },
               ),
-              title: const SizedBox.shrink(),
-              actions: [
-                TextButton(
-                  onPressed: () {
+            ),
+          ),
+          title: const SizedBox.shrink(),
+          actions: [
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.menu, color: Colors.black),
+              onSelected: (value) {
+                switch (value) {
+                  case 'staff':
+                    Navigator.pushNamed(context, AddItemsScreen.routeName);
+                    break;
+                  case 'return':
                     Navigator.pushNamed(context, '/staff/return');
-                  },
-                  child: Text(
-                    'Return',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
+                    break;
+                  case 'history':
+                    // Already on history screen
+                    break;
+                  case 'browse':
                     Navigator.pushNamed(context, '/staff/browse');
-                  },
-                  child: Text(
-                    'Browse',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
+                    break;
+                  case 'logout':
                     showDialog<void>(
                       context: context,
                       builder: (context) => AlertDialog(
@@ -199,7 +167,28 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                         ],
                       ),
                     );
-                  },
+                    break;
+                }
+              },
+              itemBuilder: (BuildContext context) => [
+                PopupMenuItem<String>(
+                  value: 'staff',
+                  child: Text('Staff', style: GoogleFonts.poppins()),
+                ),
+                PopupMenuItem<String>(
+                  value: 'return',
+                  child: Text('Return', style: GoogleFonts.poppins()),
+                ),
+                PopupMenuItem<String>(
+                  value: 'history',
+                  child: Text('History', style: GoogleFonts.poppins()),
+                ),
+                PopupMenuItem<String>(
+                  value: 'browse',
+                  child: Text('Browse', style: GoogleFonts.poppins()),
+                ),
+                PopupMenuItem<String>(
+                  value: 'logout',
                   child: Text(
                     'Logout',
                     style: GoogleFonts.poppins(color: Colors.red),
@@ -207,134 +196,131 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                 ),
               ],
             ),
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search),
-                    hintText: 'Search by Item ID or Name',
-                    hintStyle: GoogleFonts.poppins(fontSize: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[200],
-                  ),
+          ],
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: 'Search by Item ID or Name',
+                hintStyle: GoogleFonts.poppins(fontSize: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: _filteredHistory.isEmpty
-                      ? Center(
-                          child: Text(
-                            _searchController.text.trim().isEmpty
-                                ? 'No rental history yet.'
-                                : 'No matching items found.',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey[700],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: _filteredHistory.length,
-                          itemBuilder: (context, index) {
-                            final rec = _filteredHistory[index];
-                            final item = rec['item'];
-                            final borrowerName =
-                                rec['borrowerName'] ?? 'Unknown';
-                            final borrowDate = rec['borrowDate'] ?? '';
-                            final returnDate = rec['returnDate'] ?? '';
-                            final returnedAt = rec['returnedAt'];
-                            final lateReturn = rec['lateReturn'] ?? false;
+                filled: true,
+                fillColor: Colors.grey[200],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: _filteredHistory.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchController.text.trim().isEmpty
+                            ? 'No rental history yet.'
+                            : 'No matching items found.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _filteredHistory.length,
+                      itemBuilder: (context, index) {
+                        final rec = _filteredHistory[index];
+                        final item = rec['item'];
+                        final borrowerName = rec['borrowerName'] ?? 'Unknown';
+                        final borrowDate = rec['borrowDate'] ?? '';
+                        final returnDate = rec['returnDate'] ?? '';
+                        final returnedAt = rec['returnedAt'];
+                        final lateReturn = rec['lateReturn'] ?? false;
 
-                            // Determine status text and color
-                            String statusText;
-                            Color statusColor;
-                            if (returnedAt != null) {
-                              if (lateReturn == true) {
-                                statusText = 'Returned as Late';
-                                statusColor = Colors.red;
-                              } else {
-                                statusText = 'Returned';
-                                statusColor = Colors.green;
-                              }
-                            } else {
-                              final isLateActive =
-                                  (rec['status']?.toString() == 'Late Return');
-                              statusText = isLateActive
-                                  ? 'Late Return'
-                                  : 'Active';
-                              statusColor = isLateActive
-                                  ? Colors.red
-                                  : Colors.orange;
-                            }
+                        // Determine status text and color
+                        String statusText;
+                        Color statusColor;
+                        if (returnedAt != null) {
+                          if (lateReturn == true) {
+                            statusText = 'Returned as Late';
+                            statusColor = Colors.red;
+                          } else {
+                            statusText = 'Returned';
+                            statusColor = Colors.green;
+                          }
+                        } else {
+                          final isLateActive =
+                              (rec['status']?.toString() == 'Late Return');
+                          statusText = isLateActive ? 'Late Return' : 'Active';
+                          statusColor = isLateActive
+                              ? Colors.red
+                              : Colors.orange;
+                        }
 
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              child: ListTile(
-                                leading: item is Map<String, dynamic>
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.asset(
-                                          item['imageUrl'] ?? '',
-                                          width: 56,
-                                          height: 56,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              const Icon(Icons.broken_image),
-                                        ),
-                                      )
-                                    : const Icon(Icons.inventory),
-                                title: Text(
-                                  item is Map<String, dynamic>
-                                      ? (item['title'] ?? 'Unknown Item')
-                                      : 'Unknown Item',
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Borrower: $borrowerName\n'
-                                  'Borrowed: $borrowDate\n'
-                                  'Expected Return: $returnDate\n'
-                                  '${returnedAt != null ? 'Returned: ${returnedAt.toString().split('T')[0]}' : 'Status: $statusText'}',
-                                  style: GoogleFonts.poppins(fontSize: 12),
-                                ),
-                                isThreeLine: true,
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: statusColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    statusText,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            leading: item is Map<String, dynamic>
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.asset(
+                                      item['imageUrl'] ?? '',
+                                      width: 56,
+                                      height: 56,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          const Icon(Icons.broken_image),
                                     ),
-                                  ),
+                                  )
+                                : const Icon(Icons.inventory),
+                            title: Text(
+                              item is Map<String, dynamic>
+                                  ? (item['title'] ?? 'Unknown Item')
+                                  : 'Unknown Item',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Borrower: $borrowerName\n'
+                              'Borrowed: $borrowDate\n'
+                              'Expected Return: $returnDate\n'
+                              '${returnedAt != null ? 'Returned: ${returnedAt.toString().split('T')[0]}' : 'Status: $statusText'}',
+                              style: GoogleFonts.poppins(fontSize: 12),
+                            ),
+                            isThreeLine: true,
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                statusText,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                ),
-              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }

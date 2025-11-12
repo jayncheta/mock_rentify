@@ -1,59 +1,114 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/items_service.dart';
+import 'package:http/http.dart' as http;
+import '../services/user_service.dart';
 import 'add.dart' show AddItemsScreen;
 
-class StaffDashboardPage extends StatelessWidget {
+class StaffDashboardPage extends StatefulWidget {
   static const String routeName = '/staff/dashboard';
   const StaffDashboardPage({super.key});
 
-  Future<int> _getBorrowedTodayCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    final now = DateTime.now();
-    int count = 0;
-    for (final s in list) {
-      try {
-        final rec = jsonDecode(s) as Map<String, dynamic>;
-        final status = (rec['status'] ?? '').toString();
-        if (status != 'Approved') continue;
-        DateTime? when;
-        final approvedAtStr = (rec['approvedAt'] ?? '').toString();
-        if (approvedAtStr.isNotEmpty) {
-          when = DateTime.tryParse(approvedAtStr);
-        }
-        when ??= DateTime.tryParse((rec['createdAt'] ?? '').toString());
-        if (when == null) continue;
-        if (when.year == now.year &&
-            when.month == now.month &&
-            when.day == now.day) {
-          count++;
-        }
-      } catch (_) {
-        // ignore bad record
+  @override
+  State<StaffDashboardPage> createState() => _StaffDashboardPageState();
+}
+
+class _StaffDashboardPageState extends State<StaffDashboardPage> {
+  String _staffName = 'Staff';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStaffName();
+  }
+
+  Future<void> _loadStaffName() async {
+    try {
+      final user = await UserBorrowService().getCurrentUser();
+      if (user != null && mounted) {
+        setState(() {
+          _staffName = user['full_name'] ?? user['username'] ?? 'Staff';
+        });
       }
+    } catch (e) {
+      // Use default name
     }
-    return count;
+  }
+
+  Future<int> _getBorrowedTodayCount() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.21:3000/borrow-requests'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> requests = jsonDecode(response.body);
+        final now = DateTime.now();
+
+        return requests.where((req) {
+          if (req['status'] != 'Approved') return false;
+          final borrowDate = DateTime.tryParse(req['borrow_date'] ?? '');
+          if (borrowDate == null) return false;
+          return borrowDate.year == now.year &&
+              borrowDate.month == now.month &&
+              borrowDate.day == now.day;
+        }).length;
+      }
+    } catch (e) {
+      // Ignore error
+    }
+    return 0;
   }
 
   Future<int> _getPendingRequestCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    int count = 0;
-    for (final s in list) {
-      try {
-        final rec = jsonDecode(s) as Map<String, dynamic>;
-        final status = (rec['status'] ?? '').toString();
-        if (status == 'Pending') {
-          count++;
-        }
-      } catch (_) {
-        // ignore bad record
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.21:3000/borrow-requests'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> requests = jsonDecode(response.body);
+        return requests.where((req) => req['status'] == 'Pending').length;
       }
+    } catch (e) {
+      // Ignore error
     }
-    return count;
+    return 0;
+  }
+
+  Future<Map<String, int>> _getItemCounts() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.21:3000/items?includeDisabled=true'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> items = jsonDecode(response.body);
+        int available = 0;
+        int borrowed = 0;
+        int disabled = 0;
+
+        for (var item in items) {
+          final status = item['availability_status'] ?? '';
+          if (status == 'Available')
+            available++;
+          else if (status == 'Borrowed')
+            borrowed++;
+          else if (status == 'Disabled')
+            disabled++;
+        }
+
+        return {
+          'available': available,
+          'borrowed': borrowed,
+          'disabled': disabled,
+          'total': items.length,
+        };
+      }
+    } catch (e) {
+      // Ignore error
+    }
+    return {'available': 0, 'borrowed': 0, 'disabled': 0, 'total': 0};
   }
 
   @override
@@ -76,96 +131,114 @@ class StaffDashboardPage extends StatelessWidget {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/staff/history');
-            },
-            child: Text(
-              'History',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, AddItemsScreen.routeName);
-            },
-            child: Text(
-              'Staff',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/staff/browse');
-            },
-            child: Text(
-              'Browse',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/staff/return');
-            },
-            child: Text(
-              'Return',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(
-                    'Logout',
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                  ),
-                  content: Text(
-                    'Are you sure you want to logout?',
-                    style: GoogleFonts.poppins(),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text('Cancel', style: GoogleFonts.poppins()),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Logged out')),
-                        );
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/',
-                          (route) => false,
-                        );
-                      },
-                      child: Text(
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onSelected: (value) {
+              switch (value) {
+                case 'staff':
+                  Navigator.pushNamed(context, AddItemsScreen.routeName);
+                  break;
+                case 'return':
+                  Navigator.pushNamed(context, '/staff/return');
+                  break;
+                case 'history':
+                  Navigator.pushNamed(context, '/staff/history');
+                  break;
+                case 'browse':
+                  Navigator.pushNamed(context, '/staff/browse');
+                  break;
+                case 'logout':
+                  showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(
                         'Logout',
-                        style: GoogleFonts.poppins(color: Colors.red),
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                       ),
+                      content: Text(
+                        'Are you sure you want to logout?',
+                        style: GoogleFonts.poppins(),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text('Cancel', style: GoogleFonts.poppins()),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Logged out')),
+                            );
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/',
+                              (route) => false,
+                            );
+                          },
+                          child: Text(
+                            'Logout',
+                            style: GoogleFonts.poppins(color: Colors.red),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
+                  );
+                  break;
+              }
             },
-            child: Text(
-              'Logout',
-              style: GoogleFonts.poppins(color: Colors.red),
-            ),
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'staff',
+                child: Text('Staff', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'return',
+                child: Text('Return', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'history',
+                child: Text('History', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'browse',
+                child: Text('Browse', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Text(
+                  'Logout',
+                  style: GoogleFonts.poppins(color: Colors.red),
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      body: ValueListenableBuilder(
-        valueListenable: ItemsService.instance.items,
-        builder: (context, items, child) {
-          // Calculate stats
-          final availableCount = items
-              .where((item) => !item.isDisabled && !item.isBorrowed)
-              .length;
-          final disabledCount = items.where((item) => item.isDisabled).length;
+      body: FutureBuilder<Map<String, dynamic>>(
+        future:
+            Future.wait([
+              _getBorrowedTodayCount(),
+              _getPendingRequestCount(),
+              _getItemCounts(),
+            ]).then((results) {
+              return {
+                'borrowedToday': results[0] as int,
+                'pendingRequests': results[1] as int,
+                'itemCounts': results[2] as Map<String, int>,
+              };
+            }),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final data = snapshot.data!;
+          final borrowedToday = data['borrowedToday'] as int;
+          final pendingRequests = data['pendingRequests'] as int;
+          final itemCounts = data['itemCounts'] as Map<String, int>;
+          final availableCount = itemCounts['available'] ?? 0;
+          final disabledCount = itemCounts['disabled'] ?? 0;
 
           return Padding(
             padding: const EdgeInsets.all(16.0),
@@ -173,7 +246,7 @@ class StaffDashboardPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Dashboard',
+                  '$_staffName\'s Dashboard',
                   style: GoogleFonts.poppins(
                     fontSize: 50,
                     fontWeight: FontWeight.bold,
@@ -189,16 +262,10 @@ class StaffDashboardPage extends StatelessWidget {
                     mainAxisSpacing: 16,
                     childAspectRatio: 1,
                     children: [
-                      FutureBuilder<int>(
-                        future: _getBorrowedTodayCount(),
-                        builder: (context, snapshot) {
-                          final borrowedToday = snapshot.data ?? 0;
-                          return _buildStatCard(
-                            '$borrowedToday',
-                            'Borrowed Today',
-                            const Color(0xFFFF8C42),
-                          );
-                        },
+                      _buildStatCard(
+                        '$borrowedToday',
+                        'Borrowed Today',
+                        const Color(0xFFFF8C42),
                       ),
                       _buildStatCard(
                         '$availableCount',
@@ -210,16 +277,10 @@ class StaffDashboardPage extends StatelessWidget {
                         'Disabled',
                         const Color(0xFFE53935),
                       ),
-                      FutureBuilder<int>(
-                        future: _getPendingRequestCount(),
-                        builder: (context, snapshot) {
-                          final pendingCount = snapshot.data ?? 0;
-                          return _buildStatCard(
-                            '$pendingCount',
-                            'Pending Request',
-                            const Color(0xFF26A69A),
-                          );
-                        },
+                      _buildStatCard(
+                        '$pendingRequests',
+                        'Pending Request',
+                        const Color(0xFF26A69A),
                       ),
                     ],
                   ),

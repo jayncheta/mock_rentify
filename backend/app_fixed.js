@@ -195,34 +195,113 @@ app.get('/users/:id', (req, res) => {
 // -------- AUTH: LOGIN --------
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
+    
+    console.log('Login attempt - Username:', username, 'Password length:', password?.length);
+    
+    // First try to login as staff
     db.query(
-        'SELECT user_id, username, full_name, email, role, password_hash FROM users WHERE username = ?',
+        'SELECT staff_id, username, full_name, email, role, password_hash FROM staff WHERE username = ?',
         [username],
-        async (err, results) => {
-            if (err) return res.status(500).json({ error: err });
-            if (results.length === 0) return res.status(403).json({ error: 'Invalid login' });
-            const user = results[0];
-            const isBcryptHash = user.password_hash?.startsWith('$2');
-            let isPasswordValid = false;
-            if (isBcryptHash)
-                isPasswordValid = await bcrypt.compare(password, user.password_hash);
-            else
-                isPasswordValid = user.password_hash === password;
-            // Auto-upgrade password_hash to bcrypt if they log in with their existing password
-            if (!isBcryptHash && isPasswordValid) {
-                const hashedPassword = await bcrypt.hash(password, 10);
-                db.query(
-                    'UPDATE users SET password_hash = ? WHERE user_id = ?',
-                    [hashedPassword, user.user_id],
-                    () => {}
-                );
+        async (err, staffResults) => {
+            if (err) {
+                console.error('Error querying staff table:', err);
+                return res.status(500).json({ error: err });
             }
-            if (isPasswordValid) {
-                delete user.password_hash;
-                user.id = user.user_id;
-                res.json(user);
+            
+            console.log('Staff query results:', staffResults.length, 'found');
+            
+            // If found in staff table
+            if (staffResults.length > 0) {
+                const staff = staffResults[0];
+                console.log('Staff found:', staff.username, 'Role:', staff.role);
+                console.log('Password hash starts with:', staff.password_hash?.substring(0, 10));
+                
+                const isBcryptHash = staff.password_hash?.startsWith('$2');
+                let isPasswordValid = false;
+                
+                if (isBcryptHash) {
+                    isPasswordValid = await bcrypt.compare(password, staff.password_hash);
+                    console.log('Bcrypt comparison result:', isPasswordValid);
+                } else {
+                    isPasswordValid = staff.password_hash === password;
+                    console.log('Plain text comparison result:', isPasswordValid);
+                }
+                
+                // Auto-upgrade password_hash to bcrypt if they log in with their existing password
+                if (!isBcryptHash && isPasswordValid) {
+                    const hashedPassword = await bcrypt.hash(password, 10);
+                    db.query(
+                        'UPDATE staff SET password_hash = ? WHERE staff_id = ?',
+                        [hashedPassword, staff.staff_id],
+                        () => {}
+                    );
+                }
+                
+                if (isPasswordValid) {
+                    delete staff.password_hash;
+                    staff.id = staff.staff_id;
+                    staff.user_id = staff.staff_id;
+                    staff.role = staff.role.toLowerCase();
+                    console.log('✅ Staff login successful:', staff.username);
+                    res.json(staff);
+                } else {
+                    console.log('❌ Invalid password for staff:', staff.username);
+                    return res.status(403).json({ error: 'Invalid login' });
+                }
             } else {
-                return res.status(403).json({ error: 'Invalid login' });
+                console.log('Not found in staff table, checking users table...');
+                // If not found in staff table, try users table
+                db.query(
+                    'SELECT user_id, username, full_name, email, role, password_hash FROM users WHERE username = ?',
+                    [username],
+                    async (err, results) => {
+                        if (err) {
+                            console.error('Error querying users table:', err);
+                            return res.status(500).json({ error: err });
+                        }
+                        
+                        console.log('Users query results:', results.length, 'found');
+                        
+                        if (results.length === 0) {
+                            console.log('❌ User not found in either table');
+                            return res.status(403).json({ error: 'Invalid login' });
+                        }
+                        
+                        const user = results[0];
+                        console.log('User found:', user.username, 'Role:', user.role);
+                        
+                        const isBcryptHash = user.password_hash?.startsWith('$2');
+                        let isPasswordValid = false;
+                        
+                        if (isBcryptHash) {
+                            isPasswordValid = await bcrypt.compare(password, user.password_hash);
+                            console.log('Bcrypt comparison result:', isPasswordValid);
+                        } else {
+                            isPasswordValid = user.password_hash === password;
+                            console.log('Plain text comparison result:', isPasswordValid);
+                        }
+                        
+                        // Auto-upgrade password_hash to bcrypt if they log in with their existing password
+                        if (!isBcryptHash && isPasswordValid) {
+                            const hashedPassword = await bcrypt.hash(password, 10);
+                            db.query(
+                                'UPDATE users SET password_hash = ? WHERE user_id = ?',
+                                [hashedPassword, user.user_id],
+                                () => {}
+                            );
+                        }
+                        
+                        if (isPasswordValid) {
+                            delete user.password_hash;
+                            user.id = user.user_id;
+                            console.log('✅ User login successful:', user.username);
+                            res.json(user);
+                        } else {
+                            console.log('❌ Invalid password for user:', user.username);
+                            return res.status(403).json({ error: 'Invalid login' });
+                        }
+                    }
+                );
             }
         }
     );
@@ -301,9 +380,43 @@ app.delete('/users/:userId/favorites/:itemId', (req, res) => {
     );
 });
 
+// -------- ADD ITEM --------
+app.post('/items', (req, res) => {
+    const { item_name, item_description, availability_status, lender_id } = req.body;
+    if (!item_name || !lender_id) return res.status(400).json({ error: 'Item name and lender ID required' });
+    db.query('INSERT INTO items (item_name, description, availability_status, lender_id) VALUES (?, ?, ?, ?)',
+        [item_name, item_description || '', availability_status || 'Available', lender_id],
+        (err, result) => {
+            if (err) return res.status(500).json({ error: err });
+            res.json({ success: true, item_id: result.insertId });
+        });
+});
+
+// -------- EDIT ITEM --------
+app.patch('/items/:itemId', (req, res) => {
+    const { item_name, item_description, availability_status } = req.body;
+    db.query('UPDATE items SET item_name = ?, description = ?, availability_status = ? WHERE item_id = ?',
+        [item_name, item_description, availability_status, req.params.itemId],
+        (err, result) => {
+            if (err) return res.status(500).json({ error: err });
+            res.json({ success: true });
+        });
+});
+
+// -------- DISABLE ITEM --------
+app.patch('/items/:itemId/status', (req, res) => {
+    const { availability_status } = req.body;
+    db.query('UPDATE items SET availability_status = ? WHERE item_id = ?',
+        [availability_status, req.params.itemId],
+        (err) => {
+            if (err) return res.status(500).json({ error: err });
+            res.json({ success: true });
+        });
+});
+
 // -------- START SERVER --------
 const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Accessible at http://172.27.9.184:${PORT}`);
+    console.log(`Accessible at http://10.2.8.21:${PORT}`);
 });

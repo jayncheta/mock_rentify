@@ -338,9 +338,9 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return;
 
         // Navigate based on role
-        if (role == 'staff') {
-          Navigator.pushReplacementNamed(context, AddItemsScreen.routeName);
-        } else if (role == 'lender') {
+        if (role == 'staff' || role == 'Staff') {
+          Navigator.pushReplacementNamed(context, StaffDashboardPage.routeName);
+        } else if (role == 'lender' || role == 'Lender') {
           Navigator.pushReplacementNamed(context, LenderProfilePage.routeName);
         } else {
           Navigator.pushReplacementNamed(context, BrowseScreen.routeName);
@@ -363,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _showAlertDialog(
         context,
         'Connection Error',
-        'Could not connect to server. Please make sure the backend is running at http://172.27.9.184:3000',
+        'Could not connect to server. Please make sure the backend is running at http://10.2.8.21:3000',
       );
     }
   }
@@ -614,7 +614,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _showAlertDialog(
         context,
         'Connection Error',
-        'Could not connect to server. Please make sure the backend is running at http://172.27.9.184:3000',
+        'Could not connect to server. Please make sure the backend is running at http://10.2.8.21:3000',
       );
     }
   }

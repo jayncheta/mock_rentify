@@ -17,6 +17,28 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
   List<Map<String, dynamic>> _allHistory = [];
   List<Map<String, dynamic>> _filteredHistory = [];
 
+  String _mapItemToImage(String itemName) {
+    final name = itemName.toLowerCase();
+    if (name.contains('iphone 17')) {
+      return 'http://10.2.8.21:3000/images/iphone17_pro_max.png';
+    } else if (name.contains('iphone')) {
+      return 'http://10.2.8.21:3000/images/iphone.png';
+    } else if (name.contains('ipad')) {
+      return 'http://10.2.8.21:3000/images/ipad.png';
+    } else if (name.contains('macbook')) {
+      return 'http://10.2.8.21:3000/images/macbook.png';
+    } else if (name.contains('airpods')) {
+      return 'http://10.2.8.21:3000/images/airpods.png';
+    } else if (name.contains('watch')) {
+      return 'http://10.2.8.21:3000/images/watch.png';
+    } else if (name.contains('camera')) {
+      return 'http://10.2.8.21:3000/images/camera.png';
+    } else if (name.contains('drone')) {
+      return 'http://10.2.8.21:3000/images/drone.png';
+    }
+    return 'http://10.2.8.21:3000/images/default.png';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -198,8 +220,9 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
                                     child: Image.network(
-                                      item['imageUrl'] ??
-                                          'http://172.27.9.184:3000/images/default.png',
+                                      _mapItemToImage(
+                                        item['title'] ?? 'Unknown Item',
+                                      ),
                                       width: 56,
                                       height: 56,
                                       fit: BoxFit.cover,

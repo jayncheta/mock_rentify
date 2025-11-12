@@ -101,76 +101,87 @@ class _StaffReturnScreenState extends State<StaffReturnScreen> {
         ),
         title: const SizedBox.shrink(),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/staff/history');
-            },
-            child: Text(
-              'History',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, AddItemsScreen.routeName);
-            },
-            child: Text(
-              'Staff',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/staff/browse');
-            },
-            child: Text(
-              'Browse',
-              style: GoogleFonts.poppins(color: Colors.black),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(
-                    'Logout',
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                  ),
-                  content: Text(
-                    'Are you sure you want to logout?',
-                    style: GoogleFonts.poppins(),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Text('Cancel', style: GoogleFonts.poppins()),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Logged out')),
-                        );
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/',
-                          (route) => false,
-                        );
-                      },
-                      child: Text(
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.menu, color: Colors.black),
+            onSelected: (value) {
+              switch (value) {
+                case 'staff':
+                  Navigator.pushNamed(context, AddItemsScreen.routeName);
+                  break;
+                case 'return':
+                  // Already on return screen
+                  break;
+                case 'history':
+                  Navigator.pushNamed(context, '/staff/history');
+                  break;
+                case 'browse':
+                  Navigator.pushNamed(context, '/staff/browse');
+                  break;
+                case 'logout':
+                  showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(
                         'Logout',
-                        style: GoogleFonts.poppins(color: Colors.red),
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                       ),
+                      content: Text(
+                        'Are you sure you want to logout?',
+                        style: GoogleFonts.poppins(),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text('Cancel', style: GoogleFonts.poppins()),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Logged out')),
+                            );
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/',
+                              (route) => false,
+                            );
+                          },
+                          child: Text(
+                            'Logout',
+                            style: GoogleFonts.poppins(color: Colors.red),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
+                  );
+                  break;
+              }
             },
-            child: Text(
-              'Logout',
-              style: GoogleFonts.poppins(color: Colors.red),
-            ),
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'staff',
+                child: Text('Staff', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'return',
+                child: Text('Return', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'history',
+                child: Text('History', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'browse',
+                child: Text('Browse', style: GoogleFonts.poppins()),
+              ),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Text(
+                  'Logout',
+                  style: GoogleFonts.poppins(color: Colors.red),
+                ),
+              ),
+            ],
           ),
         ],
       ),

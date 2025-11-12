@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'disable.dart' show DisableItemsScreen;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 // Additional colors from the image
 const Color formFieldBackgroundColor = Color(0xFFFBE7D7);
@@ -26,6 +28,38 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
 
   XFile? _imageFile;
   final ImagePicker _picker = ImagePicker();
+  int _nextItemId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchNextItemId();
+  }
+
+  Future<void> _fetchNextItemId() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.21:3000/items?includeDisabled=true'),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> items = jsonDecode(response.body);
+        if (items.isNotEmpty) {
+          final maxId = items
+              .map((item) => item['item_id'] as int)
+              .reduce((a, b) => a > b ? a : b);
+          setState(() {
+            _nextItemId = maxId + 1;
+          });
+        } else {
+          setState(() {
+            _nextItemId = 1;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching next item ID: $e');
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -85,8 +119,11 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
       }
       if (_imageFile != null) imageFile = File(_imageFile!.path);
 
+      final description = _descriptionController.text.trim();
+
       await ItemsService.instance.addItem(
         title: name,
+        description: description,
         imageFile: imageFile,
         assetImagePath: assetImagePath,
       );
@@ -101,6 +138,7 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
         _descriptionController.clear();
         setState(() {
           _imageFile = null;
+          _nextItemId = _nextItemId + 1; // Increment for next item
         });
       }
     } catch (e) {
@@ -199,8 +237,10 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
         const SizedBox(height: 8),
         TextField(
           enabled: false,
+          controller: TextEditingController(
+            text: _nextItemId > 0 ? _nextItemId.toString() : 'Loading...',
+          ),
           decoration: InputDecoration(
-            hintText: "Auto-generated",
             hintStyle: GoogleFonts.poppins(
               color: Colors.black.withOpacity(0.5),
             ),
@@ -390,78 +430,92 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
               title: const SizedBox.shrink(),
               centerTitle: false,
               actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/staff/return');
-                  },
-                  child: Text(
-                    'Return',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/staff/history');
-                  },
-                  child: Text(
-                    'History',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/staff/browse');
-                  },
-                  child: Text(
-                    'Browse',
-                    style: GoogleFonts.poppins(color: Colors.black),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(
-                          'Logout',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        content: Text(
-                          'Are you sure you want to logout from this device?',
-                          style: GoogleFonts.poppins(),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text('Cancel', style: GoogleFonts.poppins()),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Logged out')),
-                              );
-                              Navigator.pushNamedAndRemoveUntil(
-                                context,
-                                '/login',
-                                (route) => false,
-                              );
-                            },
-                            child: Text(
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.menu, color: Colors.black),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'staff':
+                        // Already on staff screen
+                        break;
+                      case 'return':
+                        Navigator.pushNamed(context, '/staff/return');
+                        break;
+                      case 'history':
+                        Navigator.pushNamed(context, '/staff/history');
+                        break;
+                      case 'browse':
+                        Navigator.pushNamed(context, '/staff/browse');
+                        break;
+                      case 'logout':
+                        showDialog<void>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text(
                               'Logout',
-                              style: GoogleFonts.poppins(color: Colors.red),
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
+                            content: Text(
+                              'Are you sure you want to logout from this device?',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(
+                                  'Cancel',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Logged out')),
+                                  );
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    '/login',
+                                    (route) => false,
+                                  );
+                                },
+                                child: Text(
+                                  'Logout',
+                                  style: GoogleFonts.poppins(color: Colors.red),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    );
+                        );
+                        break;
+                    }
                   },
-                  child: Text(
-                    'Logout',
-                    style: GoogleFonts.poppins(color: Colors.red),
-                  ),
+                  itemBuilder: (BuildContext context) => [
+                    PopupMenuItem<String>(
+                      value: 'staff',
+                      child: Text('Staff', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'return',
+                      child: Text('Return', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'history',
+                      child: Text('History', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'browse',
+                      child: Text('Browse', style: GoogleFonts.poppins()),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'logout',
+                      child: Text(
+                        'Logout',
+                        style: GoogleFonts.poppins(color: Colors.red),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
