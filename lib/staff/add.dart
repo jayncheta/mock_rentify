@@ -39,7 +39,7 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
   Future<void> _fetchNextItemId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.2.8.21:3000/items?includeDisabled=true'),
+        Uri.parse('http://10.2.8.26:3000/items?includeDisabled=true'),
       );
       if (response.statusCode == 200) {
         final List<dynamic> items = jsonDecode(response.body);

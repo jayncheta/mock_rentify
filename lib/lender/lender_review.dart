@@ -2,89 +2,80 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/items_service.dart' show ItemsService;
+import 'package:http/http.dart' as http;
 import '../browse.dart' show primaryColor;
 
-// TODO: Replace with backend API service when ready
 class BorrowRequestService {
   static final BorrowRequestService _instance =
       BorrowRequestService._internal();
   factory BorrowRequestService() => _instance;
   BorrowRequestService._internal();
 
-  /// Fetch all pending borrow requests
-  /// TODO: Replace with API call: GET /api/borrow-requests?status=pending
-  Future<List<Map<String, dynamic>>> getPendingRequests() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = prefs.getStringList('user_borrow_history') ?? [];
+  static const String _baseUrl = 'http://10.2.8.26:3000';
 
-      return data
-          .map((e) => jsonDecode(e) as Map<String, dynamic>)
-          .where((req) => req['status'] == 'Pending')
-          .toList();
+  /// Fetch all pending borrow requests for a specific lender
+  Future<List<Map<String, dynamic>>> getPendingRequests(int lenderId) async {
+    try {
+      debugPrint('🔍 Fetching requests for lender_id: $lenderId');
+      final response = await http.get(Uri.parse('$_baseUrl/borrow-requests'));
+
+      debugPrint('📡 Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> allRequests = jsonDecode(response.body);
+        debugPrint('📦 Total requests from API: ${allRequests.length}');
+
+        // Log each request for debugging
+        for (var req in allRequests) {
+          debugPrint(
+            '  Request: lender_id=${req['lender_id']}, status=${req['status']}, item=${req['item_name']}',
+          );
+        }
+
+        // Filter requests for this lender that are pending
+        final filtered = allRequests
+            .where(
+              (req) =>
+                  req['lender_id'] == lenderId && req['status'] == 'Pending',
+            )
+            .map((req) => req as Map<String, dynamic>)
+            .toList();
+
+        debugPrint(
+          '✅ Filtered pending requests for lender $lenderId: ${filtered.length}',
+        );
+        return filtered;
+      } else {
+        debugPrint('❌ Error fetching requests: ${response.statusCode}');
+        debugPrint('Response body: ${response.body}');
+        return [];
+      }
     } catch (e) {
-      debugPrint('Error loading pending requests: $e');
+      debugPrint('💥 Error loading pending requests: $e');
       return [];
     }
   }
 
   /// Update borrow request status (approve/reject)
-  /// TODO: Replace with API call: PATCH /api/borrow-requests/{id}
-  /// Body: { "status": "Approved|Rejected", "lenderResponse": "...", "approverId": "..." }
   Future<bool> updateRequestStatus({
-    required String requestId,
-    required String itemTitle,
-    required String borrowerName,
+    required int requestId,
     required String status,
     required String lenderResponse,
-    String? approverId,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final data = prefs.getStringList('user_borrow_history') ?? [];
-      final allRequests = data.map((e) => jsonDecode(e)).toList();
-
-      String? approvedItemId;
-      bool requestFound = false;
-
-      for (final req in allRequests) {
-        if (req['item']['title'] == itemTitle &&
-            req['borrowerName'] == borrowerName) {
-          req['status'] = status;
-          req['lenderResponse'] =
-              lenderResponse; // Changed from 'reason' to be more specific
-
-          if (status == 'Approved') {
-            req['approvedAt'] = DateTime.now().toIso8601String();
-            req['approvedBy'] =
-                approverId ?? 'Lender'; // TODO: Use actual user ID from auth
-            approvedItemId = (req['item']['id'] ?? '').toString();
-          } else if (status == 'Rejected') {
-            req['rejectedAt'] = DateTime.now().toIso8601String();
-            req['rejectedBy'] = approverId ?? 'Lender';
-          }
-
-          requestFound = true;
-          break;
-        }
-      }
-
-      if (!requestFound) {
-        return false;
-      }
-
-      await prefs.setStringList(
-        'user_borrow_history',
-        allRequests.map((e) => jsonEncode(e)).toList(),
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/borrow-requests/$requestId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'status': status, 'lender_response': lenderResponse}),
       );
 
-      // If approved, mark the item as borrowed
-      if (approvedItemId != null && approvedItemId.isNotEmpty) {
-        await ItemsService.instance.setBorrowed(approvedItemId, true);
+      if (response.statusCode == 200) {
+        debugPrint('✅ Request $requestId updated to $status');
+        return true;
+      } else {
+        debugPrint('❌ Error updating request: ${response.statusCode}');
+        return false;
       }
-
-      return true;
     } catch (e) {
       debugPrint('Error updating request status: $e');
       return false;
@@ -106,21 +97,42 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
   List<Map<String, dynamic>> _pendingRequests = [];
   bool _isLoading = false;
   String? _errorMessage;
+  int? _lenderId;
 
   @override
   void initState() {
     super.initState();
+    _loadLenderData();
+  }
+
+  Future<void> _loadLenderData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userDataString = prefs.getString('current_user');
+
+    debugPrint('👤 Loading lender data...');
+    debugPrint('userData string: $userDataString');
+
+    if (userDataString != null) {
+      final userData = jsonDecode(userDataString);
+      _lenderId = userData['lender_id'] ?? userData['id'];
+      debugPrint('✅ Lender ID loaded: $_lenderId');
+    } else {
+      debugPrint('⚠️ No userData found in SharedPreferences');
+    }
+
     _loadPendingRequests();
   }
 
   Future<void> _loadPendingRequests() async {
+    if (_lenderId == null) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final requests = await _requestService.getPendingRequests();
+      final requests = await _requestService.getPendingRequests(_lenderId!);
       setState(() {
         _pendingRequests = requests;
         _isLoading = false;
@@ -143,12 +155,9 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
     setState(() => _isLoading = true);
 
     final success = await _requestService.updateRequestStatus(
-      requestId: request['id']?.toString() ?? '', // TODO: Use actual request ID
-      itemTitle: request['item']['title'],
-      borrowerName: request['borrowerName'],
+      requestId: request['request_id'] ?? 0,
       status: status,
       lenderResponse: lenderResponse,
-      // approverId: 'current_user_id', // TODO: Get from auth service
     );
 
     setState(() => _isLoading = false);
@@ -179,29 +188,35 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          req['item']['title'],
+          req['item_name'] ?? 'Item',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.network(req['item']['imageUrl'], height: 150),
+            if (req['image_url'] != null)
+              Image.network(
+                'http://10.2.8.26:3000${req['image_url']}',
+                height: 150,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.image_not_supported, size: 150),
+              ),
             const SizedBox(height: 10),
             Text(
-              'Borrower name: ${req['borrowerName']}',
+              'Borrower name: ${req['borrower_name'] ?? 'Unknown'}',
               style: GoogleFonts.poppins(),
             ),
             Text(
-              'Borrowing date: ${req['borrowDate']}',
+              'Borrowing date: ${req['borrow_date'] ?? 'N/A'}',
               style: GoogleFonts.poppins(),
             ),
             Text(
-              'Return date: ${req['returnDate']}',
+              'Return date: ${req['return_date'] ?? 'N/A'}',
               style: GoogleFonts.poppins(),
             ),
             const SizedBox(height: 10),
-            if (req['reason'] != null &&
-                req['reason'].toString().isNotEmpty) ...[
+            if (req['borrower_reason'] != null &&
+                req['borrower_reason'].toString().isNotEmpty) ...[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -223,7 +238,7 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      req['reason'],
+                      req['borrower_reason'],
                       style: GoogleFonts.poppins(fontSize: 13),
                     ),
                   ],
@@ -341,7 +356,6 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
           itemCount: _pendingRequests.length,
           itemBuilder: (context, index) {
             final req = _pendingRequests[index];
-            final item = req['item'];
 
             return Container(
               margin: const EdgeInsets.symmetric(vertical: 8),
@@ -359,19 +373,23 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
               child: ListTile(
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    item['imageUrl'],
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                  ),
+                  child: req['image_url'] != null
+                      ? Image.network(
+                          'http://10.2.8.26:3000${req['image_url']}',
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.image_not_supported),
+                        )
+                      : const Icon(Icons.image_not_supported),
                 ),
                 title: Text(
-                  item['title'],
+                  req['item_name'] ?? 'Item',
                   style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
-                  'Borrower: ${req['borrowerName']}\nReturn: ${req['returnDate']}',
+                  'Borrower: ${req['borrower_name'] ?? 'Unknown'}\nReturn: ${req['return_date'] ?? 'N/A'}',
                   style: GoogleFonts.poppins(fontSize: 13),
                 ),
                 trailing: ElevatedButton(

@@ -20,23 +20,23 @@ class _UserRequestPageState extends State<UserRequestPage> {
   String _mapItemToImage(String itemName) {
     final name = itemName.toLowerCase();
     if (name.contains('iphone 17')) {
-      return 'http://10.2.8.21:3000/images/iphone17_pro_max.png';
+      return 'http://10.2.8.26:3000/images/iphone17_pro_max.png';
     } else if (name.contains('iphone')) {
-      return 'http://10.2.8.21:3000/images/iphone.png';
+      return 'http://10.2.8.26:3000/images/iphone.png';
     } else if (name.contains('ipad')) {
-      return 'http://10.2.8.21:3000/images/ipad.png';
+      return 'http://10.2.8.26:3000/images/ipad.png';
     } else if (name.contains('macbook')) {
-      return 'http://10.2.8.21:3000/images/macbook.png';
+      return 'http://10.2.8.26:3000/images/macbook.png';
     } else if (name.contains('airpods')) {
-      return 'http://10.2.8.21:3000/images/airpods.png';
+      return 'http://10.2.8.26:3000/images/airpods.png';
     } else if (name.contains('watch')) {
-      return 'http://10.2.8.21:3000/images/watch.png';
+      return 'http://10.2.8.26:3000/images/watch.png';
     } else if (name.contains('camera')) {
-      return 'http://10.2.8.21:3000/images/camera.png';
+      return 'http://10.2.8.26:3000/images/camera.png';
     } else if (name.contains('drone')) {
-      return 'http://10.2.8.21:3000/images/drone.png';
+      return 'http://10.2.8.26:3000/images/drone.png';
     }
-    return 'http://10.2.8.21:3000/images/default.png';
+    return 'http://10.2.8.26:3000/images/default.png';
   }
 
   @override
@@ -393,7 +393,7 @@ class _UserRequestPageState extends State<UserRequestPage> {
                                       return ClipRRect(
                                         borderRadius: BorderRadius.circular(12),
                                         child: Image.network(
-                                          'http://10.2.8.21:3000/images/default.png',
+                                          'http://10.2.8.26:3000/images/default.png',
                                           width: 80,
                                           height: 80,
                                           fit: BoxFit.cover,

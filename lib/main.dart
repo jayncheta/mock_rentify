@@ -363,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _showAlertDialog(
         context,
         'Connection Error',
-        'Could not connect to server. Please make sure the backend is running at http://10.2.8.21:3000',
+        'Could not connect to server. Please make sure the backend is running at http://10.2.8.26:3000',
       );
     }
   }
@@ -614,7 +614,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _showAlertDialog(
         context,
         'Connection Error',
-        'Could not connect to server. Please make sure the backend is running at http://10.2.8.21:3000',
+        'Could not connect to server. Please make sure the backend is running at http://172.27.22.12:3000',
       );
     }
   }

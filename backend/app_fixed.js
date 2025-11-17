@@ -105,9 +105,11 @@ app.get('/borrow-requests', (req, res) => {
             i.item_name,
             i.description AS item_description,
             i.availability_status,
-            i.image_url
+            i.image_url,
+            u.full_name AS borrower_name
         FROM borrow_requests br
         LEFT JOIN items i ON br.item_id = i.item_id
+        LEFT JOIN users u ON br.borrower_id = u.user_id
         ORDER BY br.request_id DESC
     `, (err, results) => {
         if (err) {
@@ -154,29 +156,104 @@ app.get('/users/:userId/borrow-requests', (req, res) => {
 // Cancel/update borrow request status
 app.patch('/borrow-requests/:requestId', (req, res) => {
     const { requestId } = req.params;
-    const { status } = req.body;
+    const { status, lender_response, return_item, late_return, staff_processed_return_id } = req.body;
     
     if (!status) {
         return res.status(400).json({ error: 'Status is required' });
     }
     
-    console.log(`🔄 Updating borrow request ${requestId} to status: ${status}`);
+    console.log(`🔄 Updating borrow request ${requestId}`, { return_item, late_return });
     
-    db.query(
-        'UPDATE borrow_requests SET status = ? WHERE request_id = ?',
-        [status, requestId],
-        (err, result) => {
-            if (err) {
-                console.error('Error updating borrow request:', err);
-                return res.status(500).json({ error: err });
+    // Handle return - move from borrow_requests to history
+    if (return_item === true) {
+        // First, get the borrow request details
+        db.query(
+            `SELECT br.*, i.item_name, u.username as borrower_name, i.image_url
+             FROM borrow_requests br
+             JOIN items i ON br.item_id = i.item_id
+             JOIN users u ON br.borrower_id = u.user_id
+             WHERE br.request_id = ?`,
+            [requestId],
+            (err, requests) => {
+                if (err) {
+                    console.error('Error fetching borrow request:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (requests.length === 0) {
+                    return res.status(404).json({ error: 'Borrow request not found' });
+                }
+                
+                const request = requests[0];
+                const historyStatus = late_return ? 'Returned_Late' : 'Returned';
+                
+                // Insert into history table (using actual schema)
+                db.query(
+                    `INSERT INTO history (user_id, item_id, borrow_date, return_date, status, 
+                     borrower_reason, lender_response, is_late_flagged)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        request.borrower_id,
+                        request.item_id,
+                        request.borrow_date,
+                        request.return_date,
+                        historyStatus,
+                        request.borrower_reason,
+                        request.lender_response,
+                        late_return ? 1 : 0
+                    ],
+                    (err, result) => {
+                        if (err) {
+                            console.error('Error inserting into history:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        
+                        // Delete from borrow_requests
+                        db.query(
+                            'DELETE FROM borrow_requests WHERE request_id = ?',
+                            [requestId],
+                            (err, deleteResult) => {
+                                if (err) {
+                                    console.error('Error deleting borrow request:', err);
+                                    return res.status(500).json({ error: err.message });
+                                }
+                                
+                                console.log(`✅ Request ${requestId} moved to history as ${historyStatus}`);
+                                res.json({ success: true, moved_to_history: true });
+                            }
+                        );
+                    }
+                );
             }
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: 'Borrow request not found' });
-            }
-            console.log(`✅ Borrow request ${requestId} updated to ${status}`);
-            res.json({ success: true, updated: result.affectedRows });
+        );
+    } else {
+        // Regular status update (for approve/reject)
+        const updates = ['status = ?'];
+        const values = [status];
+        
+        if (lender_response !== undefined) {
+            updates.push('lender_response = ?');
+            values.push(lender_response);
         }
-    );
+        
+        values.push(requestId);
+        
+        db.query(
+            `UPDATE borrow_requests SET ${updates.join(', ')} WHERE request_id = ?`,
+            values,
+            (err, result) => {
+                if (err) {
+                    console.error('Error updating borrow request:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                if (result.affectedRows === 0) {
+                    return res.status(404).json({ error: 'Borrow request not found' });
+                }
+                console.log(`✅ Borrow request ${requestId} updated to ${status}`);
+                res.json({ success: true, updated: result.affectedRows });
+            }
+        );
+    }
 });
 
 // -------- GET USER INFO --------
@@ -249,56 +326,110 @@ app.post('/login', (req, res) => {
                     return res.status(403).json({ error: 'Invalid login' });
                 }
             } else {
-                console.log('Not found in staff table, checking users table...');
-                // If not found in staff table, try users table
+                console.log('Not found in staff table, checking lender table...');
+                // If not found in staff table, try lender table
                 db.query(
-                    'SELECT user_id, username, full_name, email, role, password_hash FROM users WHERE username = ?',
+                    'SELECT lender_id, username, full_name, email, role, password_hash FROM lender WHERE username = ?',
                     [username],
-                    async (err, results) => {
+                    async (err, lenderResults) => {
                         if (err) {
-                            console.error('Error querying users table:', err);
+                            console.error('Error querying lender table:', err);
                             return res.status(500).json({ error: err });
                         }
                         
-                        console.log('Users query results:', results.length, 'found');
+                        console.log('Lender query results:', lenderResults.length, 'found');
                         
-                        if (results.length === 0) {
-                            console.log('❌ User not found in either table');
-                            return res.status(403).json({ error: 'Invalid login' });
-                        }
-                        
-                        const user = results[0];
-                        console.log('User found:', user.username, 'Role:', user.role);
-                        
-                        const isBcryptHash = user.password_hash?.startsWith('$2');
-                        let isPasswordValid = false;
-                        
-                        if (isBcryptHash) {
-                            isPasswordValid = await bcrypt.compare(password, user.password_hash);
-                            console.log('Bcrypt comparison result:', isPasswordValid);
+                        // If found in lender table
+                        if (lenderResults.length > 0) {
+                            const lender = lenderResults[0];
+                            console.log('Lender found:', lender.username, 'Role:', lender.role);
+                            
+                            const isBcryptHash = lender.password_hash?.startsWith('$2');
+                            let isPasswordValid = false;
+                            
+                            if (isBcryptHash) {
+                                isPasswordValid = await bcrypt.compare(password, lender.password_hash);
+                                console.log('Bcrypt comparison result:', isPasswordValid);
+                            } else {
+                                isPasswordValid = lender.password_hash === password;
+                                console.log('Plain text comparison result:', isPasswordValid);
+                            }
+                            
+                            // Auto-upgrade password_hash to bcrypt if they log in with their existing password
+                            if (!isBcryptHash && isPasswordValid) {
+                                const hashedPassword = await bcrypt.hash(password, 10);
+                                db.query(
+                                    'UPDATE lender SET password_hash = ? WHERE lender_id = ?',
+                                    [hashedPassword, lender.lender_id],
+                                    () => {}
+                                );
+                            }
+                            
+                            if (isPasswordValid) {
+                                delete lender.password_hash;
+                                lender.id = lender.lender_id;
+                                lender.user_id = lender.lender_id;
+                                lender.role = 'lender';
+                                console.log('✅ Lender login successful:', lender.username);
+                                res.json(lender);
+                            } else {
+                                console.log('❌ Invalid password for lender:', lender.username);
+                                return res.status(403).json({ error: 'Invalid login' });
+                            }
                         } else {
-                            isPasswordValid = user.password_hash === password;
-                            console.log('Plain text comparison result:', isPasswordValid);
-                        }
-                        
-                        // Auto-upgrade password_hash to bcrypt if they log in with their existing password
-                        if (!isBcryptHash && isPasswordValid) {
-                            const hashedPassword = await bcrypt.hash(password, 10);
+                            console.log('Not found in lender table, checking users table...');
+                            // If not found in lender table, try users table
                             db.query(
-                                'UPDATE users SET password_hash = ? WHERE user_id = ?',
-                                [hashedPassword, user.user_id],
-                                () => {}
+                                'SELECT user_id, username, full_name, email, role, password_hash FROM users WHERE username = ?',
+                                [username],
+                                async (err, results) => {
+                                    if (err) {
+                                        console.error('Error querying users table:', err);
+                                        return res.status(500).json({ error: err });
+                                    }
+                                    
+                                    console.log('Users query results:', results.length, 'found');
+                                    
+                                    if (results.length === 0) {
+                                        console.log('❌ User not found in any table');
+                                        return res.status(403).json({ error: 'Invalid login' });
+                                    }
+                                    
+                                    const user = results[0];
+                                    console.log('User found:', user.username, 'Role:', user.role);
+                                    
+                                    const isBcryptHash = user.password_hash?.startsWith('$2');
+                                    let isPasswordValid = false;
+                                    
+                                    if (isBcryptHash) {
+                                        isPasswordValid = await bcrypt.compare(password, user.password_hash);
+                                        console.log('Bcrypt comparison result:', isPasswordValid);
+                                    } else {
+                                        isPasswordValid = user.password_hash === password;
+                                        console.log('Plain text comparison result:', isPasswordValid);
+                                    }
+                                    
+                                    // Auto-upgrade password_hash to bcrypt if they log in with their existing password
+                                    if (!isBcryptHash && isPasswordValid) {
+                                        const hashedPassword = await bcrypt.hash(password, 10);
+                                        db.query(
+                                            'UPDATE users SET password_hash = ? WHERE user_id = ?',
+                                            [hashedPassword, user.user_id],
+                                            () => {}
+                                        );
+                                    }
+                                    
+                                    if (isPasswordValid) {
+                                        delete user.password_hash;
+                                        user.id = user.user_id;
+                                        console.log('✅ User login successful:', user.username);
+                                        res.json(user);
+                                    } else {
+                                        console.log('❌ Invalid password for user:', user.username);
+                                        return res.status(403).json({ error: 'Invalid login' });
+                                    }
+                                }
                             );
-                        }
-                        
-                        if (isPasswordValid) {
-                            delete user.password_hash;
-                            user.id = user.user_id;
-                            console.log('✅ User login successful:', user.username);
-                            res.json(user);
-                        } else {
-                            console.log('❌ Invalid password for user:', user.username);
-                            return res.status(403).json({ error: 'Invalid login' });
                         }
                     }
                 );
@@ -418,5 +549,5 @@ app.patch('/items/:itemId/status', (req, res) => {
 const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`Accessible at http://10.2.8.21:${PORT}`);
+    console.log(`Accessible at http://10.2.8.26:${PORT}`);
 });

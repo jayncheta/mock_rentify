@@ -33,7 +33,7 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
   Future<void> _loadHistory() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.2.8.21:3000/borrow-requests'),
+        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
       );
 
       if (response.statusCode == 200) {
@@ -46,13 +46,14 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
             history.add({
               'item': {
                 'id': req['item_id']?.toString() ?? '',
-                'itemName': req['item_name'] ?? 'Unknown Item',
+                'title': req['item_name'] ?? 'Unknown Item',
               },
               'borrowerName': req['borrower_name'] ?? 'Unknown',
               'borrowDate': req['borrow_date'] ?? '',
               'returnDate': req['return_date'] ?? '',
               'returnedAt': req['returned_at'],
               'status': req['status'] ?? 'Pending',
+              'imageUrl': req['image_url'],
             });
           }
         }
@@ -269,14 +270,16 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                             leading: item is Map<String, dynamic>
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: Image.asset(
-                                      item['imageUrl'] ?? '',
-                                      width: 56,
-                                      height: 56,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          const Icon(Icons.broken_image),
-                                    ),
+                                    child: rec['imageUrl'] != null
+                                        ? Image.network(
+                                            'http://10.2.8.26:3000${rec['imageUrl']}',
+                                            width: 56,
+                                            height: 56,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(Icons.broken_image),
+                                          )
+                                        : const Icon(Icons.inventory),
                                   )
                                 : const Icon(Icons.inventory),
                             title: Text(

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../browse.dart' show Item;
-import '../services/items_service.dart' show ItemsService;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'add.dart' show AddItemsScreen;
 
@@ -16,16 +15,13 @@ class StaffReturnScreen extends StatefulWidget {
 
 class _StaffReturnScreenState extends State<StaffReturnScreen> {
   final TextEditingController _searchController = TextEditingController();
-  Set<String> _activeBorrowedIds = <String>{};
-  Map<String, String> _activeIdToTitle = <String, String>{};
+  List<Map<String, dynamic>> _borrowedItems = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Ensure flags are applied so borrowed items are accurate
-    ItemsService.instance.loadDisabledFlags();
-    ItemsService.instance.loadBorrowedFlags();
-    _refreshActiveBorrowedFromHistory();
+    _loadBorrowedItems();
   }
 
   @override
@@ -34,48 +30,51 @@ class _StaffReturnScreenState extends State<StaffReturnScreen> {
     super.dispose();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reload when navigating back to ensure active set is fresh
-    _refreshActiveBorrowedFromHistory();
-    ItemsService.instance.loadBorrowedFlags();
-  }
+  Future<void> _loadBorrowedItems() async {
+    setState(() => _isLoading = true);
 
-  Future<void> _refreshActiveBorrowedFromHistory() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-      final ids = <String>{};
-      final titles = <String, String>{};
-      for (int i = list.length - 1; i >= 0; i--) {
-        try {
-          final Map<String, dynamic> rec = jsonDecode(list[i]);
-          final item = rec['item'];
-          if (item is Map<String, dynamic>) {
-            final id = (item['id'] ?? '').toString();
-            final title = (item['title'] ?? '').toString();
-            final status = (rec['status'] ?? '').toString();
-            final returnedAt = rec['returnedAt'];
-            if (id.isNotEmpty &&
-                status == 'Approved' &&
-                (returnedAt == null || returnedAt.toString().isEmpty)) {
-              ids.add(id);
-              if (title.isNotEmpty) titles[id] = title;
-            }
-          }
-        } catch (_) {
-          // ignore
+      final response = await http.get(
+        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> requests = jsonDecode(response.body);
+
+        // Filter for approved items that haven't been returned yet
+        final borrowed = requests
+            .where(
+              (req) =>
+                  req['status'] == 'Approved' && req['returned_at'] == null,
+            )
+            .map(
+              (req) =>
+                  {
+                        'request_id': req['request_id'],
+                        'item_id': req['item_id'],
+                        'item_name': req['item_name'] ?? 'Unknown Item',
+                        'borrower_name': req['borrower_name'] ?? 'Unknown',
+                        'borrow_date': req['borrow_date'] ?? '',
+                        'return_date': req['return_date'] ?? '',
+                        'image_url': req['image_url'],
+                        'borrower_reason': req['borrower_reason'],
+                      }
+                      as Map<String, dynamic>,
+            )
+            .toList();
+
+        if (mounted) {
+          setState(() {
+            _borrowedItems = borrowed;
+            _isLoading = false;
+          });
         }
       }
+    } catch (e) {
+      debugPrint('Error loading borrowed items: $e');
       if (mounted) {
-        setState(() {
-          _activeBorrowedIds = ids;
-          _activeIdToTitle = titles;
-        });
+        setState(() => _isLoading = false);
       }
-    } catch (_) {
-      // ignore
     }
   }
 
@@ -227,175 +226,114 @@ class _StaffReturnScreenState extends State<StaffReturnScreen> {
   }
 
   Widget _buildBorrowedList() {
-    return ValueListenableBuilder<List<Item>>(
-      valueListenable: ItemsService.instance.items,
-      builder: (context, items, _) {
-        final query = _searchController.text.trim().toLowerCase();
-        // Consider an item borrowed if either the ItemsService flag is set
-        // OR it's present as an active approved record in history.
-        final borrowed = items
-            .where((it) => it.isBorrowed || _activeBorrowedIds.contains(it.id))
-            .where((it) {
-              if (query.isEmpty) return true;
-              return it.title.toLowerCase().contains(query) ||
-                  it.id.toLowerCase().contains(query);
-            })
-            .toList();
+    final query = _searchController.text.trim().toLowerCase();
+    final filtered = _borrowedItems.where((item) {
+      if (query.isEmpty) return true;
+      return item['item_name'].toString().toLowerCase().contains(query) ||
+          item['item_id'].toString().toLowerCase().contains(query);
+    }).toList();
 
-        // Build any extra active entries present in history but not in items list
-        final borrowedIds = borrowed.map((e) => e.id).toSet();
-        final extraIds = _activeBorrowedIds
-            .where((id) => !borrowedIds.contains(id))
-            .where((id) {
-              if (query.isEmpty) return true;
-              final title = (_activeIdToTitle[id] ?? '').toLowerCase();
-              return id.toLowerCase().contains(query) || title.contains(query);
-            })
-            .toList();
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        if (borrowed.isEmpty && extraIds.isEmpty) {
-          return Center(
-            child: Text(
-              'No borrowed items found',
-              style: GoogleFonts.poppins(),
-            ),
-          );
-        }
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          query.isEmpty ? 'No borrowed items found' : 'No matching items found',
+          style: GoogleFonts.poppins(),
+        ),
+      );
+    }
 
-        return ListView.separated(
-          itemCount: borrowed.length + extraIds.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            if (index < borrowed.length) {
-              final it = borrowed[index];
-              return _ReturnCard(item: it, onConfirm: () => _confirmReturn(it));
-            }
-            final extraId = extraIds[index - borrowed.length];
-            final title = _activeIdToTitle[extraId] ?? 'Borrowed Item';
-            return _LightReturnCard(
-              itemId: extraId,
-              title: title,
-              onConfirm: () => _confirmReturnById(extraId),
-            );
-          },
+    return ListView.separated(
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = filtered[index];
+        return _ReturnCard(
+          item: item,
+          onConfirm: () => _confirmReturn(item),
+          onRefresh: _loadBorrowedItems,
         );
       },
     );
   }
 
-  Future<void> _confirmReturn(Item item) async {
-    await _confirmReturnById(item.id);
-  }
+  Future<void> _confirmReturn(Map<String, dynamic> item) async {
+    try {
+      // Get staff ID from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final userDataString = prefs.getString('current_user');
+      int? staffId;
 
-  Future<void> _confirmReturnById(String itemId) async {
-    // 1) Mark item as available
-    await ItemsService.instance.setBorrowed(itemId, false);
-
-    // 2) Update user_borrow_history: set returnedAt for latest approved, not-returned record for this item
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    bool updated = false;
-    for (int i = list.length - 1; i >= 0; i--) {
-      try {
-        final Map<String, dynamic> rec = jsonDecode(list[i]);
-        final recItem = rec['item'];
-        if (recItem is Map<String, dynamic>) {
-          final id = (recItem['id'] ?? '').toString();
-          final status = (rec['status'] ?? '').toString();
-          final returnedAt = rec['returnedAt'];
-          if (id == itemId &&
-              status == 'Approved' &&
-              (returnedAt == null || (returnedAt as String).isEmpty)) {
-            rec['returnedAt'] = DateTime.now().toIso8601String();
-            list[i] = jsonEncode(rec);
-            updated = true;
-            break;
-          }
-        }
-      } catch (_) {
-        // ignore bad record
+      if (userDataString != null) {
+        final userData = jsonDecode(userDataString);
+        staffId = userData['staff_id'] ?? userData['id'];
       }
-    }
-    if (updated) {
-      await prefs.setStringList('user_borrow_history', list);
-    }
 
-    // Remove from active IDs and refresh UI
-    if (mounted) {
-      setState(() {
-        _activeBorrowedIds.remove(itemId);
-      });
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Return confirmed and status set to available'),
+      // Move item from borrow_requests to history
+      final response = await http.patch(
+        Uri.parse(
+          'http://10.2.8.26:3000/borrow-requests/${item['request_id']}',
         ),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'status': 'Approved',
+          'return_item': true, // Flag to move to history
+          'late_return': false,
+          'staff_processed_return_id': staffId,
+        }),
       );
+
+      if (response.statusCode == 200 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Return confirmed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadBorrowedItems(); // Refresh the list
+      } else {
+        throw Exception('Failed to confirm return');
+      }
+    } catch (e) {
+      debugPrint('Error confirming return: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 }
 
-class _LightReturnCard extends StatefulWidget {
-  final String itemId;
-  final String title;
+class _ReturnCard extends StatefulWidget {
+  final Map<String, dynamic> item;
   final VoidCallback onConfirm;
-  const _LightReturnCard({
-    required this.itemId,
-    required this.title,
+  final VoidCallback onRefresh;
+  const _ReturnCard({
+    required this.item,
     required this.onConfirm,
+    required this.onRefresh,
   });
 
   @override
-  State<_LightReturnCard> createState() => _LightReturnCardState();
+  State<_ReturnCard> createState() => _ReturnCardState();
 }
 
-class _LightReturnCardState extends State<_LightReturnCard> {
+class _ReturnCardState extends State<_ReturnCard> {
   bool isChecked = false;
-
-  Future<Map<String, String>> _loadTimes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    String pickUpTime = '';
-    String returnTime = '';
-    String borrowerName = '';
-    String returnDate = '';
-    String approvedBy = '';
-    for (int i = list.length - 1; i >= 0; i--) {
-      try {
-        final Map<String, dynamic> rec = jsonDecode(list[i]);
-        final item = rec['item'];
-        if (item is Map<String, dynamic>) {
-          final id = (item['id'] ?? '').toString();
-          final status = (rec['status'] ?? '').toString();
-          final returnedAt = rec['returnedAt'];
-          if (id == widget.itemId &&
-              status == 'Approved' &&
-              (returnedAt == null || (returnedAt as String).isEmpty)) {
-            pickUpTime = (rec['pickUpTime'] ?? '').toString();
-            returnTime = (rec['returnTime'] ?? '').toString();
-            borrowerName = (rec['borrowerName'] ?? '').toString();
-            returnDate = (rec['returnDate'] ?? '').toString();
-            approvedBy = (rec['approvedBy'] ?? '').toString();
-            break;
-          }
-        }
-      } catch (_) {
-        // ignore malformed entries
-      }
-    }
-    return {
-      'pickUpTime': pickUpTime,
-      'returnTime': returnTime,
-      'borrowerName': borrowerName,
-      'returnDate': returnDate,
-      'approvedBy': approvedBy,
-    };
-  }
 
   @override
   Widget build(BuildContext context) {
+    final itemName = widget.item['item_name'] ?? 'Unknown Item';
+    final itemId = widget.item['item_id']?.toString() ?? '';
+    final borrowerName = widget.item['borrower_name'] ?? 'Unknown';
+    final borrowDate = widget.item['borrow_date'] ?? '';
+    final returnDate = widget.item['return_date'] ?? '';
+    final imageUrl = widget.item['image_url'];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -405,6 +343,22 @@ class _LightReturnCardState extends State<_LightReturnCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Item image if available
+          if (imageUrl != null)
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  'http://10.2.8.26:3000$imageUrl',
+                  height: 120,
+                  width: 120,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.image_not_supported, size: 120),
+                ),
+              ),
+            ),
+          if (imageUrl != null) const SizedBox(height: 10),
           Text(
             'Return Confirmation',
             style: GoogleFonts.poppins(
@@ -413,49 +367,11 @@ class _LightReturnCardState extends State<_LightReturnCard> {
             ),
           ),
           const SizedBox(height: 10),
-          // Borrower name above Item
-          FutureBuilder<Map<String, String>>(
-            future: _loadTimes(),
-            builder: (context, snapshot) {
-              final borrowerName = snapshot.data?['borrowerName'] ?? '';
-              return _buildDetail(
-                'Borrower: '
-                '${borrowerName.isNotEmpty ? borrowerName : 'Unknown'}',
-              );
-            },
-          ),
-          _buildDetail('Item: ${widget.title}'),
-          _buildDetail('Item ID: ${widget.itemId}'),
-          FutureBuilder<Map<String, String>>(
-            future: _loadTimes(),
-            builder: (context, snapshot) {
-              final returnDate = snapshot.data?['returnDate'] ?? '';
-              final pickUpTime = snapshot.data?['pickUpTime'] ?? '';
-              final returnTime = snapshot.data?['returnTime'] ?? '';
-              final approvedBy = snapshot.data?['approvedBy'] ?? '';
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetail(
-                    'Return date: '
-                    '${returnDate.isNotEmpty ? returnDate : 'Not set'}',
-                  ),
-                  _buildDetail(
-                    'Pick-up time: '
-                    '${pickUpTime.isNotEmpty ? pickUpTime : 'Not set'}',
-                  ),
-                  _buildDetail(
-                    'Return time: '
-                    '${returnTime.isNotEmpty ? returnTime : 'Not set'}',
-                  ),
-                  _buildDetail(
-                    'Approved by: '
-                    '${approvedBy.isNotEmpty ? approvedBy : 'Lender'}',
-                  ),
-                ],
-              );
-            },
-          ),
+          _buildDetail('Borrower: $borrowerName'),
+          _buildDetail('Item: $itemName'),
+          _buildDetail('Item ID: $itemId'),
+          _buildDetail('Borrowed: ${borrowDate.split('T')[0]}'),
+          _buildDetail('Expected Return: ${returnDate.split('T')[0]}'),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -465,9 +381,11 @@ class _LightReturnCardState extends State<_LightReturnCard> {
                 onChanged: (value) =>
                     setState(() => isChecked = value ?? false),
               ),
-              Text(
-                'Item is in good condition',
-                style: GoogleFonts.poppins(fontSize: 14),
+              Expanded(
+                child: Text(
+                  'Item is in good condition',
+                  style: GoogleFonts.poppins(fontSize: 14),
+                ),
               ),
             ],
           ),
@@ -482,90 +400,17 @@ class _LightReturnCardState extends State<_LightReturnCard> {
                       borderRadius: BorderRadius.circular(25),
                     ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
+                      horizontal: 16,
                       vertical: 10,
                     ),
                   ),
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(
-                          'Set Status: Late Return',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        content: Text(
-                          'Mark this item as Late Return? This will set the status to Late Return for the active rental.',
-                          style: GoogleFonts.poppins(),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text('No', style: GoogleFonts.poppins()),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              final list =
-                                  prefs.getStringList('user_borrow_history') ??
-                                  <String>[];
-                              bool updated = false;
-                              for (int i = list.length - 1; i >= 0; i--) {
-                                try {
-                                  final Map<String, dynamic> rec = jsonDecode(
-                                    list[i],
-                                  );
-                                  final recItem = rec['item'];
-                                  if (recItem is Map<String, dynamic>) {
-                                    final id = (recItem['id'] ?? '').toString();
-                                    final status = (rec['status'] ?? '')
-                                        .toString();
-                                    final returnedAt = rec['returnedAt'];
-                                    if (id == widget.itemId &&
-                                        status == 'Approved' &&
-                                        (returnedAt == null ||
-                                            (returnedAt as String).isEmpty)) {
-                                      rec['lateReturn'] = true;
-                                      rec['status'] = 'Late Return';
-                                      rec['lateFlaggedAt'] = DateTime.now()
-                                          .toIso8601String();
-                                      list[i] = jsonEncode(rec);
-                                      updated = true;
-                                      break;
-                                    }
-                                  }
-                                } catch (_) {}
-                              }
-                              if (updated) {
-                                await prefs.setStringList(
-                                  'user_borrow_history',
-                                  list,
-                                );
-                              }
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Status set to Late Return'),
-                                ),
-                              );
-                            },
-                            child: Text(
-                              'Yes',
-                              style: GoogleFonts.poppins(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                  onPressed: () => _markAsLateReturn(context),
                   child: Text(
-                    'Set Status: Late Return',
+                    'Late Return',
                     style: GoogleFonts.poppins(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -579,16 +424,17 @@ class _LightReturnCardState extends State<_LightReturnCard> {
                       borderRadius: BorderRadius.circular(25),
                     ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
+                      horizontal: 16,
                       vertical: 10,
                     ),
                   ),
                   onPressed: isChecked ? widget.onConfirm : null,
                   child: Text(
-                    'Confirm Return (Set Status to Available)',
+                    'Confirm Return',
                     style: GoogleFonts.poppins(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -600,271 +446,75 @@ class _LightReturnCardState extends State<_LightReturnCard> {
     );
   }
 
-  Widget _buildDetail(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(text, style: GoogleFonts.poppins(fontSize: 14)),
-    );
-  }
-}
-
-class _ReturnCard extends StatefulWidget {
-  final Item item;
-  final VoidCallback onConfirm;
-  const _ReturnCard({required this.item, required this.onConfirm});
-
-  @override
-  State<_ReturnCard> createState() => _ReturnCardState();
-}
-
-class _ReturnCardState extends State<_ReturnCard> {
-  bool isChecked = false;
-
-  Future<Map<String, String>> _loadTimes() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    String pickUpTime = '';
-    String returnTime = '';
-    String borrowerName = '';
-    String returnDate = '';
-    String approvedBy = '';
-    for (int i = list.length - 1; i >= 0; i--) {
-      try {
-        final Map<String, dynamic> rec = jsonDecode(list[i]);
-        final item = rec['item'];
-        if (item is Map<String, dynamic>) {
-          final id = (item['id'] ?? '').toString();
-          final status = (rec['status'] ?? '').toString();
-          final returnedAt = rec['returnedAt'];
-          if (id == widget.item.id &&
-              status == 'Approved' &&
-              (returnedAt == null || (returnedAt as String).isEmpty)) {
-            pickUpTime = (rec['pickUpTime'] ?? '').toString();
-            returnTime = (rec['returnTime'] ?? '').toString();
-            borrowerName = (rec['borrowerName'] ?? '').toString();
-            returnDate = (rec['returnDate'] ?? '').toString();
-            approvedBy = (rec['approvedBy'] ?? '').toString();
-            break;
-          }
-        }
-      } catch (_) {
-        // ignore malformed entries
-      }
-    }
-    return {
-      'pickUpTime': pickUpTime,
-      'returnTime': returnTime,
-      'borrowerName': borrowerName,
-      'returnDate': returnDate,
-      'approvedBy': approvedBy,
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFBE7D7),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Return Confirmation',
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-            ),
+  Future<void> _markAsLateReturn(BuildContext context) async {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Mark as Late Return?',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'This will flag the return as late.',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
           ),
-          const SizedBox(height: 10),
-          // Borrower name above Item
-          FutureBuilder<Map<String, String>>(
-            future: _loadTimes(),
-            builder: (context, snapshot) {
-              final borrowerName = snapshot.data?['borrowerName'] ?? '';
-              return _buildDetail(
-                'Borrower: '
-                '${borrowerName.isNotEmpty ? borrowerName : 'Unknown'}',
-              );
-            },
-          ),
-          _buildDetail('Item: ${widget.item.title}'),
-          _buildDetail('Item ID: ${widget.item.id}'),
-          FutureBuilder<Map<String, String>>(
-            future: _loadTimes(),
-            builder: (context, snapshot) {
-              final returnDate = snapshot.data?['returnDate'] ?? '';
-              final pickUpTime = snapshot.data?['pickUpTime'] ?? '';
-              final returnTime = snapshot.data?['returnTime'] ?? '';
-              final approvedBy = snapshot.data?['approvedBy'] ?? '';
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetail(
-                    'Return date: '
-                    '${returnDate.isNotEmpty ? returnDate : 'Not set'}',
+          TextButton(
+            onPressed: () async {
+              try {
+                // Get staff ID
+                final prefs = await SharedPreferences.getInstance();
+                final userDataString = prefs.getString('current_user');
+                int? staffId;
+
+                if (userDataString != null) {
+                  final userData = jsonDecode(userDataString);
+                  staffId = userData['staff_id'] ?? userData['id'];
+                }
+
+                // Move to history with late_return flag
+                final response = await http.patch(
+                  Uri.parse(
+                    'http://10.2.8.26:3000/borrow-requests/${widget.item['request_id']}',
                   ),
-                  _buildDetail(
-                    'Pick-up time: '
-                    '${pickUpTime.isNotEmpty ? pickUpTime : 'Not set'}',
-                  ),
-                  _buildDetail(
-                    'Return time: '
-                    '${returnTime.isNotEmpty ? returnTime : 'Not set'}',
-                  ),
-                  _buildDetail(
-                    'Approved by: '
-                    '${approvedBy.isNotEmpty ? approvedBy : 'Lender'}',
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Checkbox(
-                activeColor: Colors.green,
-                value: isChecked,
-                onChanged: (value) =>
-                    setState(() => isChecked = value ?? false),
-              ),
-              Text(
-                'Item is in good condition',
-                style: GoogleFonts.poppins(fontSize: 14),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({
+                    'status': 'Approved',
+                    'return_item': true, // Move to history
+                    'late_return': true, // Flag as late
+                    'staff_processed_return_id': staffId,
+                  }),
+                );
+
+                Navigator.of(context).pop();
+
+                if (response.statusCode == 200) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Marked as Late Return'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  widget.onRefresh();
+                }
+              } catch (e) {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: $e'),
                     backgroundColor: Colors.red,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 10,
-                    ),
                   ),
-                  onPressed: () {
-                    showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(
-                          'Set Status: Late Return',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        content: Text(
-                          'Mark this item as Late Return? This will set the status to Late Return for the active rental.',
-                          style: GoogleFonts.poppins(),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text('No', style: GoogleFonts.poppins()),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              // Persist 'lateReturn' flag AND set status = 'Late Return' on the latest
-                              // approved, not-returned record for this item
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              final list =
-                                  prefs.getStringList('user_borrow_history') ??
-                                  <String>[];
-                              bool updated = false;
-                              for (int i = list.length - 1; i >= 0; i--) {
-                                try {
-                                  final Map<String, dynamic> rec = jsonDecode(
-                                    list[i],
-                                  );
-                                  final recItem = rec['item'];
-                                  if (recItem is Map<String, dynamic>) {
-                                    final id = (recItem['id'] ?? '').toString();
-                                    final status = (rec['status'] ?? '')
-                                        .toString();
-                                    final returnedAt = rec['returnedAt'];
-                                    if (id == widget.item.id &&
-                                        status == 'Approved' &&
-                                        (returnedAt == null ||
-                                            (returnedAt as String).isEmpty)) {
-                                      rec['lateReturn'] = true;
-                                      rec['status'] = 'Late Return';
-                                      rec['lateFlaggedAt'] = DateTime.now()
-                                          .toIso8601String();
-                                      list[i] = jsonEncode(rec);
-                                      updated = true;
-                                      break;
-                                    }
-                                  }
-                                } catch (_) {
-                                  // ignore
-                                }
-                              }
-                              if (updated) {
-                                await prefs.setStringList(
-                                  'user_borrow_history',
-                                  list,
-                                );
-                              }
-
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Status set to Late Return'),
-                                ),
-                              );
-                            },
-                            child: Text(
-                              'Yes',
-                              style: GoogleFonts.poppins(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  child: Text(
-                    'Set Status: Late Return',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 10,
-                    ),
-                  ),
-                  onPressed: isChecked ? widget.onConfirm : null,
-                  child: Text(
-                    'Confirm Return (Set Status to Available)',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+                );
+              }
+            },
+            child: Text(
+              'Yes, Mark Late',
+              style: GoogleFonts.poppins(color: Colors.red),
+            ),
           ),
         ],
       ),

@@ -38,20 +38,18 @@ class _StaffDashboardPageState extends State<StaffDashboardPage> {
   Future<int> _getBorrowedTodayCount() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.2.8.21:3000/borrow-requests'),
+        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> requests = jsonDecode(response.body);
-        final now = DateTime.now();
 
+        // Count currently borrowed items (Approved and not yet returned)
         return requests.where((req) {
           if (req['status'] != 'Approved') return false;
-          final borrowDate = DateTime.tryParse(req['borrow_date'] ?? '');
-          if (borrowDate == null) return false;
-          return borrowDate.year == now.year &&
-              borrowDate.month == now.month &&
-              borrowDate.day == now.day;
+          if (req['returned_at'] != null)
+            return false; // Exclude returned items
+          return true;
         }).length;
       }
     } catch (e) {
@@ -63,7 +61,7 @@ class _StaffDashboardPageState extends State<StaffDashboardPage> {
   Future<int> _getPendingRequestCount() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.2.8.21:3000/borrow-requests'),
+        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
       );
 
       if (response.statusCode == 200) {
@@ -79,7 +77,7 @@ class _StaffDashboardPageState extends State<StaffDashboardPage> {
   Future<Map<String, int>> _getItemCounts() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.2.8.21:3000/items?includeDisabled=true'),
+        Uri.parse('http://10.2.8.26:3000/items?includeDisabled=true'),
       );
 
       if (response.statusCode == 200) {

@@ -13,7 +13,7 @@ class ItemsService {
   final ValueNotifier<List<Item>> items = ValueNotifier<List<Item>>([]);
 
   // Backend API base URL
-  static const String _baseUrl = 'http://10.2.8.21:3000';
+  static const String _baseUrl = 'http://10.2.8.26:3000';
 
   // --- Persistence keys ---
   static const String _disabledIdsKey = 'disabled_item_ids';
@@ -74,42 +74,42 @@ class ItemsService {
     final fileName = name
         .replaceAll(' ', '_')
         .replaceAll(RegExp(r'[^a-z0-9_]'), '');
-    final exactMatch = 'http://10.2.8.21:3000/images/$fileName.png';
+    final exactMatch = 'http://10.2.8.26:3000/images/$fileName.png';
 
     // Available images: blue_yeti, dell_xps, hp_spectre, hyperx_cloud_2, ipad_air,
     // ipad_pro, iphone17_pro_max, macbook_air, macbook_pro, rode_nt
 
     // Check for exact matches
     if (name.contains('hyperx') || name.contains('cloud')) {
-      return 'http://10.2.8.21:3000/images/hyperX_cloud_2.png';
+      return 'http://10.2.8.26:3000/images/hyperX_cloud_2.png';
     } else if (name.contains('ipad air')) {
-      return 'http://10.2.8.21:3000/images/ipad_air.png';
+      return 'http://10.2.8.26:3000/images/ipad_air.png';
     } else if (name.contains('ipad pro')) {
-      return 'http://10.2.8.21:3000/images/ipad_pro.png';
+      return 'http://10.2.8.26:3000/images/ipad_pro.png';
     } else if (name.contains('ipad') || name.contains('tablet')) {
-      return 'http://10.2.8.21:3000/images/ipad_air.png';
+      return 'http://10.2.8.26:3000/images/ipad_air.png';
     } else if (name.contains('macbook air')) {
-      return 'http://10.2.8.21:3000/images/macbook_air.png';
+      return 'http://10.2.8.26:3000/images/macbook_air.png';
     } else if (name.contains('macbook pro')) {
-      return 'http://10.2.8.21:3000/images/macbook_pro.png';
+      return 'http://10.2.8.26:3000/images/macbook_pro.png';
     } else if (name.contains('macbook') || name.contains('mac')) {
-      return 'http://10.2.8.21:3000/images/macbook_pro.png';
+      return 'http://10.2.8.26:3000/images/macbook_pro.png';
     } else if (name.contains('dell') || name.contains('xps')) {
-      return 'http://10.2.8.21:3000/images/dell_xps.png';
+      return 'http://10.2.8.26:3000/images/dell_xps.png';
     } else if (name.contains('hp') || name.contains('spectre')) {
-      return 'http://10.2.8.21:3000/images/hp_spectre.png';
+      return 'http://10.2.8.26:3000/images/hp_spectre.png';
     } else if (name.contains('windows') ||
         name.contains('laptop') ||
         name.contains('pc')) {
-      return 'http://10.2.8.21:3000/images/dell_xps.png';
+      return 'http://10.2.8.26:3000/images/dell_xps.png';
     } else if (name.contains('blue yeti') || name.contains('yeti')) {
-      return 'http://10.2.8.21:3000/images/blue_yeti.png';
+      return 'http://10.2.8.26:3000/images/blue_yeti.png';
     } else if (name.contains('rode') || name.contains('nt')) {
-      return 'http://10.2.8.21:3000/images/rode_nt.png';
+      return 'http://10.2.8.26:3000/images/rode_nt.png';
     } else if (name.contains('mic') || name.contains('microphone')) {
-      return 'http://10.2.8.21:3000/images/blue_yeti.png';
+      return 'http://10.2.8.26:3000/images/blue_yeti.png';
     } else if (name.contains('iphone') || name.contains('phone')) {
-      return 'http://10.2.8.21:3000/images/iphone17_pro_max.png';
+      return 'http://10.2.8.26:3000/images/iphone17_pro_max.png';
     }
 
     // Default fallback - try exact filename match

@@ -1,57 +1,116 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/items_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'lender_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   static const String routeName = '/lender/dashboard';
   const DashboardPage({super.key});
 
-  Future<int> _getBorrowedTodayCount() async {
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  int? _lenderId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLenderInfo();
+  }
+
+  Future<void> _loadLenderInfo() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    final now = DateTime.now();
-    int count = 0;
-    for (final s in list) {
-      try {
-        final rec = jsonDecode(s) as Map<String, dynamic>;
-        final status = (rec['status'] ?? '').toString();
-        if (status != 'Approved') continue;
-        DateTime? when;
-        final approvedAtStr = (rec['approvedAt'] ?? '').toString();
-        if (approvedAtStr.isNotEmpty) {
-          when = DateTime.tryParse(approvedAtStr);
-        }
-        when ??= DateTime.tryParse((rec['createdAt'] ?? '').toString());
-        if (when == null) continue;
-        if (when.year == now.year &&
-            when.month == now.month &&
-            when.day == now.day) {
-          count++;
-        }
-      } catch (_) {
-        // ignore malformed record
+    final userDataString = prefs.getString('current_user');
+    if (userDataString != null) {
+      final userData = jsonDecode(userDataString) as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _lenderId = userData['lender_id'] ?? userData['id'];
+        });
       }
     }
-    return count;
+  }
+
+  Future<int> _getBorrowedTodayCount() async {
+    if (_lenderId == null) return 0;
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> requests = jsonDecode(response.body);
+
+        // Count currently borrowed items (Approved and not yet returned)
+        return requests.where((req) {
+          // Filter by lender_id
+          if (req['lender_id'] != _lenderId) return false;
+          if (req['status'] != 'Approved') return false;
+          if (req['returned_at'] != null)
+            return false; // Exclude returned items
+          return true;
+        }).length;
+      }
+    } catch (e) {
+      // Ignore error
+    }
+    return 0;
   }
 
   Future<int> _getPendingRequestCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    int count = 0;
-    for (final s in list) {
-      try {
-        final rec = jsonDecode(s) as Map<String, dynamic>;
-        final status = (rec['status'] ?? '').toString();
-        if (status == 'Pending') count++;
-      } catch (_) {
-        // ignore malformed record
+    if (_lenderId == null) return 0;
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> requests = jsonDecode(response.body);
+        return requests
+            .where(
+              (req) =>
+                  req['lender_id'] == _lenderId && req['status'] == 'Pending',
+            )
+            .length;
       }
+    } catch (e) {
+      // Ignore error
     }
-    return count;
+    return 0;
+  }
+
+  Future<Map<String, int>> _getItemCounts() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.26:3000/items?includeDisabled=true'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> items = jsonDecode(response.body);
+        int available = 0;
+        int disabled = 0;
+
+        for (var item in items) {
+          final status = item['availability_status'] ?? '';
+          if (status == 'Available') {
+            available++;
+          } else if (status == 'Unavailable' || status == 'Disabled') {
+            disabled++;
+          }
+        }
+
+        return {'available': available, 'disabled': disabled};
+      }
+    } catch (e) {
+      // Ignore error
+    }
+    return {'available': 0, 'disabled': 0};
   }
 
   @override
@@ -68,33 +127,31 @@ class DashboardPage extends StatelessWidget {
           },
         ),
       ),
-      body: ValueListenableBuilder(
-        valueListenable: ItemsService.instance.items,
-        builder: (context, items, child) {
-          // Calculate stats
-          // Available means not disabled and not borrowed
-          final availableCount = items
-              .where((item) => !item.isDisabled && !item.isBorrowed)
-              .length;
-          final disabledCount = items.where((item) => item.isDisabled).length;
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dashboard',
+              style: GoogleFonts.poppins(
+                fontSize: 50,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Dashboard',
-                  style: GoogleFonts.poppins(
-                    fontSize: 50,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 24),
+            // --- Grid of Stats ---
+            Expanded(
+              child: FutureBuilder<Map<String, int>>(
+                future: _getItemCounts(),
+                builder: (context, itemSnapshot) {
+                  final itemCounts =
+                      itemSnapshot.data ?? {'available': 0, 'disabled': 0};
+                  final availableCount = itemCounts['available'] ?? 0;
+                  final disabledCount = itemCounts['disabled'] ?? 0;
 
-                // --- Grid of Stats ---
-                Expanded(
-                  child: GridView.count(
+                  return GridView.count(
                     crossAxisCount: 2,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
@@ -133,12 +190,12 @@ class DashboardPage extends StatelessWidget {
                         },
                       ),
                     ],
-                  ),
-                ),
-              ],
+                  );
+                },
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }

@@ -14,6 +14,25 @@ class LenderBrowseScreen extends StatefulWidget {
 class _LenderBrowseScreenState extends State<LenderBrowseScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadItems();
+  }
+
+  Future<void> _loadItems() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    await ItemsService.instance.fetchItemsFromBackend();
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,41 +82,44 @@ class _LenderBrowseScreenState extends State<LenderBrowseScreen> {
 
           // Items Grid
           Expanded(
-            child: ValueListenableBuilder<List<Item>>(
-              valueListenable: ItemsService.instance.items,
-              builder: (context, items, _) {
-                final filteredItems = items.where((item) {
-                  return item.title.toLowerCase().contains(_searchQuery);
-                }).toList();
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ValueListenableBuilder<List<Item>>(
+                    valueListenable: ItemsService.instance.items,
+                    builder: (context, items, _) {
+                      final filteredItems = items.where((item) {
+                        return item.title.toLowerCase().contains(_searchQuery);
+                      }).toList();
 
-                if (filteredItems.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No items found',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  );
-                }
+                      if (filteredItems.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'No items found',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        );
+                      }
 
-                return GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.75,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                        itemCount: filteredItems.length,
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          return _LenderItemCard(item: item);
+                        },
+                      );
+                    },
                   ),
-                  itemCount: filteredItems.length,
-                  itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    return _LenderItemCard(item: item);
-                  },
-                );
-              },
-            ),
           ),
         ],
       ),

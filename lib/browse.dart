@@ -12,7 +12,7 @@ class FavoritesRepo {
   static final FavoritesRepo instance = FavoritesRepo._();
 
   final ValueNotifier<Set<String>> favorites = ValueNotifier(<String>{});
-  static const String _baseUrl = 'http://10.2.8.21:3000';
+  static const String _baseUrl = 'http://10.2.8.26:3000';
 
   // Fallback to local storage if backend fails
   static const String _favoritesKey = 'user_favorites';

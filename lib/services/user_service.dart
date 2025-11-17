@@ -10,7 +10,7 @@ class UserBorrowService {
   UserBorrowService._internal();
 
   // Backend API base URL - Your server IP address
-  static const String _baseUrl = 'http://10.2.8.21:3000';
+  static const String _baseUrl = 'http://10.2.8.26:3000';
 
   /// Create a new borrow request
   /// Connects to: POST /borrow-request

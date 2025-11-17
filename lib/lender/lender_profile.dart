@@ -1,13 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'dashboard.dart';
 import 'lender_browse.dart';
 import 'lender_review.dart';
 import 'lender_history.dart';
 
-class LenderProfilePage extends StatelessWidget {
+class LenderProfilePage extends StatefulWidget {
   static const String routeName = '/lender/profile';
   const LenderProfilePage({super.key});
+
+  @override
+  State<LenderProfilePage> createState() => _LenderProfilePageState();
+}
+
+class _LenderProfilePageState extends State<LenderProfilePage> {
+  String _lenderName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLenderName();
+  }
+
+  Future<void> _loadLenderName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userDataString = prefs.getString('current_user');
+    if (userDataString != null) {
+      final userData = jsonDecode(userDataString) as Map<String, dynamic>;
+      setState(() {
+        _lenderName =
+            userData['full_name']?.toString() ??
+            userData['username']?.toString() ??
+            'Lender';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +69,16 @@ class LenderProfilePage extends StatelessWidget {
                       color: Colors.black,
                     ),
                   ),
+                  if (_lenderName.isNotEmpty)
+                    Text(
+                      _lenderName,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                      ),
+                    ),
                   const SizedBox(height: 60),
                   Center(
                     child: SizedBox(

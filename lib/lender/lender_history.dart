@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../browse.dart' show primaryColor;
 
 class LenderHistoryPage extends StatefulWidget {
@@ -16,33 +17,34 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _allHistory = [];
   List<Map<String, dynamic>> _filteredHistory = [];
+  int? _lenderId;
 
   String _mapItemToImage(String itemName) {
     final name = itemName.toLowerCase();
     if (name.contains('iphone 17')) {
-      return 'http://10.2.8.21:3000/images/iphone17_pro_max.png';
+      return 'http://10.2.8.26:3000/images/iphone17_pro_max.png';
     } else if (name.contains('iphone')) {
-      return 'http://10.2.8.21:3000/images/iphone.png';
+      return 'http://10.2.8.26:3000/images/iphone.png';
     } else if (name.contains('ipad')) {
-      return 'http://10.2.8.21:3000/images/ipad.png';
+      return 'http://10.2.8.26:3000/images/ipad.png';
     } else if (name.contains('macbook')) {
-      return 'http://10.2.8.21:3000/images/macbook.png';
+      return 'http://10.2.8.26:3000/images/macbook.png';
     } else if (name.contains('airpods')) {
-      return 'http://10.2.8.21:3000/images/airpods.png';
+      return 'http://10.2.8.26:3000/images/airpods.png';
     } else if (name.contains('watch')) {
-      return 'http://10.2.8.21:3000/images/watch.png';
+      return 'http://10.2.8.26:3000/images/watch.png';
     } else if (name.contains('camera')) {
-      return 'http://10.2.8.21:3000/images/camera.png';
+      return 'http://10.2.8.26:3000/images/camera.png';
     } else if (name.contains('drone')) {
-      return 'http://10.2.8.21:3000/images/drone.png';
+      return 'http://10.2.8.26:3000/images/drone.png';
     }
-    return 'http://10.2.8.21:3000/images/default.png';
+    return 'http://10.2.8.26:3000/images/default.png';
   }
 
   @override
   void initState() {
     super.initState();
-    _loadHistory();
+    _loadLenderData();
     _searchController.addListener(_filterHistory);
   }
 
@@ -52,64 +54,84 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
     super.dispose();
   }
 
-  Future<void> _loadHistory() async {
+  Future<void> _loadLenderData() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList('user_borrow_history') ?? <String>[];
-    final history = <Map<String, dynamic>>[];
+    final userDataString = prefs.getString('current_user');
 
-    for (final s in list) {
-      try {
-        final rec = jsonDecode(s) as Map<String, dynamic>;
-        final status = (rec['status'] ?? '').toString();
-        final item = rec['item'];
-        final returnedAt = rec['returnedAt'];
+    if (userDataString != null) {
+      final userData = jsonDecode(userDataString);
+      _lenderId = userData['lender_id'] ?? userData['id'];
+    }
 
-        // Include any record that has actually been rented:
-        // - Active rentals: status Approved or Late Return (returnedAt is null)
-        // - Completed rentals: any record with returnedAt set
-        final bool isActiveRental =
-            (status == 'Approved' || status == 'Late Return') &&
-            (returnedAt == null ||
-                (returnedAt is String && returnedAt.isEmpty));
-        final bool isCompletedRental =
-            returnedAt != null &&
-            (!(returnedAt is String) || returnedAt.isNotEmpty);
+    _loadHistory();
+  }
 
-        if (item is Map<String, dynamic> &&
-            (isActiveRental || isCompletedRental)) {
-          history.add(rec);
+  Future<void> _loadHistory() async {
+    if (_lenderId == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> requests = jsonDecode(response.body);
+        final history = <Map<String, dynamic>>[];
+
+        for (var req in requests) {
+          // Filter by lender_id and include approved/returned rentals
+          if (req['lender_id'] == _lenderId &&
+              (req['status'] == 'Approved' ||
+                  req['status'] == 'Returned' ||
+                  req['returned_at'] != null)) {
+            history.add({
+              'item': {
+                'id': req['item_id']?.toString() ?? '',
+                'title': req['item_name'] ?? 'Unknown Item',
+              },
+              'borrowerName': req['borrower_name'] ?? 'Unknown',
+              'borrowDate': req['borrow_date'] ?? '',
+              'returnDate': req['return_date'] ?? '',
+              'returnedAt': req['returned_at'],
+              'status': req['status'] ?? 'Approved',
+              'lateReturn': _isLateReturn(
+                req['return_date'],
+                req['returned_at'],
+              ),
+              'imageUrl': req['image_url'],
+            });
+          }
         }
-      } catch (_) {
-        // ignore bad record
+
+        // Sort by borrow date, newest first
+        history.sort((a, b) {
+          final aDate =
+              DateTime.tryParse(a['borrowDate'] ?? '') ?? DateTime(1970);
+          final bDate =
+              DateTime.tryParse(b['borrowDate'] ?? '') ?? DateTime(1970);
+          return bDate.compareTo(aDate);
+        });
+
+        if (mounted) {
+          setState(() {
+            _allHistory = history;
+            _filteredHistory = history;
+          });
+        }
       }
+    } catch (e) {
+      debugPrint('Error loading history: $e');
     }
+  }
 
-    DateTime? parseDate(dynamic v) {
-      if (v == null) return null;
-      if (v is DateTime) return v;
-      final s = v.toString();
-      try {
-        return DateTime.parse(s);
-      } catch (_) {
-        return null;
-      }
-    }
-
-    history.sort((a, b) {
-      final aApproved = parseDate(a['approvedAt']);
-      final bApproved = parseDate(b['approvedAt']);
-      final aBorrow = aApproved ?? parseDate(a['borrowDate']);
-      final bBorrow = bApproved ?? parseDate(b['borrowDate']);
-      final aTime = aBorrow?.millisecondsSinceEpoch ?? 0;
-      final bTime = bBorrow?.millisecondsSinceEpoch ?? 0;
-      return bTime.compareTo(aTime);
-    });
-
-    if (mounted) {
-      setState(() {
-        _allHistory = history;
-        _filteredHistory = history;
-      });
+  bool _isLateReturn(String? returnDate, String? returnedAt) {
+    if (returnDate == null || returnedAt == null) return false;
+    try {
+      final expectedReturn = DateTime.parse(returnDate);
+      final actualReturn = DateTime.parse(returnedAt);
+      return actualReturn.isAfter(expectedReturn);
+    } catch (_) {
+      return false;
     }
   }
 
@@ -219,16 +241,25 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
                             leading: item is Map<String, dynamic>
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      _mapItemToImage(
-                                        item['title'] ?? 'Unknown Item',
-                                      ),
-                                      width: 56,
-                                      height: 56,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          const Icon(Icons.broken_image),
-                                    ),
+                                    child: rec['imageUrl'] != null
+                                        ? Image.network(
+                                            'http://10.2.8.26:3000${rec['imageUrl']}',
+                                            width: 56,
+                                            height: 56,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(Icons.broken_image),
+                                          )
+                                        : Image.network(
+                                            _mapItemToImage(
+                                              item['title'] ?? 'Unknown Item',
+                                            ),
+                                            width: 56,
+                                            height: 56,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(Icons.broken_image),
+                                          ),
                                   )
                                 : const Icon(Icons.inventory),
                             title: Text(
