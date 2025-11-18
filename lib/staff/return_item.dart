@@ -47,19 +47,17 @@ class _StaffReturnScreenState extends State<StaffReturnScreen> {
               (req) =>
                   req['status'] == 'Approved' && req['returned_at'] == null,
             )
-            .map(
-              (req) =>
-                  {
-                        'request_id': req['request_id'],
-                        'item_id': req['item_id'],
-                        'item_name': req['item_name'] ?? 'Unknown Item',
-                        'borrower_name': req['borrower_name'] ?? 'Unknown',
-                        'borrow_date': req['borrow_date'] ?? '',
-                        'return_date': req['return_date'] ?? '',
-                        'image_url': req['image_url'],
-                        'borrower_reason': req['borrower_reason'],
-                      }
-                      as Map<String, dynamic>,
+            .map<Map<String, dynamic>>(
+              (req) => {
+                'request_id': req['request_id'],
+                'item_id': req['item_id'],
+                'item_name': req['item_name'],
+                'borrower_name': req['borrower_name'],
+                'borrow_date': req['borrow_date'],
+                'return_date': req['return_date'],
+                'image_url': req['image_url'],
+                'borrower_reason': req['borrower_reason'],
+              },
             )
             .toList();
 
