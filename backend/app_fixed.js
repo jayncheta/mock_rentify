@@ -226,33 +226,79 @@ app.patch('/borrow-requests/:requestId', (req, res) => {
                     });
                 }
                 
-                console.log(`✅ Status check passed, proceeding with update...`);
-                // Proceed with status update
-                const updates = ['status = ?'];
-                const values = [status];
-                
-                if (lender_response !== undefined) {
-                    updates.push('lender_response = ?');
-                    values.push(lender_response);
+                // If approving, check if borrower already has an approved item
+                if (status.toLowerCase() === 'approved') {
+                    // Get the borrower_id from the current request
+                    db.query(
+                        'SELECT borrower_id FROM borrow_requests WHERE request_id = ?',
+                        [requestId],
+                        (err, borrowerRows) => {
+                            if (err) {
+                                console.error('Error fetching borrower_id:', err);
+                                return res.status(500).json({ error: err.message });
+                            }
+                            
+                            const borrowerId = borrowerRows[0].borrower_id;
+                            
+                            // Check if this borrower has any other approved requests
+                            db.query(
+                                'SELECT request_id, item_id FROM borrow_requests WHERE borrower_id = ? AND status = ? AND request_id != ?',
+                                [borrowerId, 'Approved', requestId],
+                                (err, approvedRows) => {
+                                    if (err) {
+                                        console.error('Error checking existing approved requests:', err);
+                                        return res.status(500).json({ error: err.message });
+                                    }
+                                    
+                                    if (approvedRows && approvedRows.length > 0) {
+                                        console.log(`❌ BLOCKED: User ${borrowerId} already has ${approvedRows.length} approved request(s)`);
+                                        return res.status(400).json({ 
+                                            error: 'User already has an approved item. Only one item can be borrowed at a time.',
+                                            existing_approved_request: approvedRows[0].request_id
+                                        });
+                                    }
+                                    
+                                    console.log(`✅ User ${borrowerId} has no other approved requests, proceeding...`);
+                                    // Proceed with the approval
+                                    performStatusUpdate();
+                                }
+                            );
+                        }
+                    );
+                } else {
+                    // Not an approval, just update status (e.g., Declined)
+                    performStatusUpdate();
                 }
                 
-                values.push(requestId);
-                
-                db.query(
-                    `UPDATE borrow_requests SET ${updates.join(', ')} WHERE request_id = ?`,
-                    values,
-                    (err, result) => {
-                        if (err) {
-                            console.error('Error updating borrow request:', err);
-                            return res.status(500).json({ error: err.message });
-                        }
-                        if (result.affectedRows === 0) {
-                            return res.status(404).json({ error: 'Borrow request not found' });
-                        }
-                        console.log(`✅ Borrow request ${requestId} updated to ${status}`);
-                        res.json({ success: true, updated: result.affectedRows });
+                function performStatusUpdate() {
+                    console.log(`✅ Status check passed, proceeding with update...`);
+                    // Proceed with status update
+                    const updates = ['status = ?'];
+                    const values = [status];
+                    
+                    if (lender_response !== undefined) {
+                        updates.push('lender_response = ?');
+                        values.push(lender_response);
                     }
-                );
+                    
+                    values.push(requestId);
+                    
+                    db.query(
+                        `UPDATE borrow_requests SET ${updates.join(', ')} WHERE request_id = ?`,
+                        values,
+                        (err, result) => {
+                            if (err) {
+                                console.error('Error updating borrow request:', err);
+                                return res.status(500).json({ error: err.message });
+                            }
+                            if (result.affectedRows === 0) {
+                                return res.status(404).json({ error: 'Borrow request not found' });
+                            }
+                            console.log(`✅ Borrow request ${requestId} updated to ${status}`);
+                            res.json({ success: true, updated: result.affectedRows });
+                        }
+                    );
+                }
             }
         );
         return; // Exit early
