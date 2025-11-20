@@ -195,7 +195,68 @@ app.patch('/borrow-requests/:requestId', (req, res) => {
         return res.status(400).json({ error: 'Status is required' });
     }
     
-    console.log(`🔄 Updating borrow request ${requestId}`, { return_item, late_return });
+    console.log(`🔄 Updating borrow request ${requestId}`, { status, return_item, late_return });
+    
+    // First, check current status (except for return operations which need Approved status)
+    if (return_item !== true) {
+        console.log(`🔍 Checking current status for request ${requestId} before approval/rejection...`);
+        // For approve/reject operations, check if status is Pending
+        db.query(
+            'SELECT status FROM borrow_requests WHERE request_id = ?',
+            [requestId],
+            (err, rows) => {
+                if (err) {
+                    console.error('Error fetching request status:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (!rows || rows.length === 0) {
+                    return res.status(404).json({ error: 'Borrow request not found' });
+                }
+                
+                const currentStatus = (rows[0].status || '').toString();
+                console.log(`📊 Current status: "${currentStatus}", Attempting to change to: "${status}"`);
+                
+                // Only allow status updates if current status is Pending
+                if (currentStatus.toLowerCase() !== 'pending') {
+                    console.log(`❌ BLOCKED: Cannot update from ${currentStatus} to ${status}`);
+                    return res.status(400).json({ 
+                        error: `Cannot update request. Current status is ${currentStatus}`,
+                        current_status: currentStatus
+                    });
+                }
+                
+                console.log(`✅ Status check passed, proceeding with update...`);
+                // Proceed with status update
+                const updates = ['status = ?'];
+                const values = [status];
+                
+                if (lender_response !== undefined) {
+                    updates.push('lender_response = ?');
+                    values.push(lender_response);
+                }
+                
+                values.push(requestId);
+                
+                db.query(
+                    `UPDATE borrow_requests SET ${updates.join(', ')} WHERE request_id = ?`,
+                    values,
+                    (err, result) => {
+                        if (err) {
+                            console.error('Error updating borrow request:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        if (result.affectedRows === 0) {
+                            return res.status(404).json({ error: 'Borrow request not found' });
+                        }
+                        console.log(`✅ Borrow request ${requestId} updated to ${status}`);
+                        res.json({ success: true, updated: result.affectedRows });
+                    }
+                );
+            }
+        );
+        return; // Exit early
+    }
     
     // Handle return - move from borrow_requests to history
     if (return_item === true) {
@@ -271,33 +332,6 @@ app.patch('/borrow-requests/:requestId', (req, res) => {
                         );
                     }
                 );
-            }
-        );
-    } else {
-        // Regular status update (for approve/reject)
-        const updates = ['status = ?'];
-        const values = [status];
-        
-        if (lender_response !== undefined) {
-            updates.push('lender_response = ?');
-            values.push(lender_response);
-        }
-        
-        values.push(requestId);
-        
-        db.query(
-            `UPDATE borrow_requests SET ${updates.join(', ')} WHERE request_id = ?`,
-            values,
-            (err, result) => {
-                if (err) {
-                    console.error('Error updating borrow request:', err);
-                    return res.status(500).json({ error: err.message });
-                }
-                if (result.affectedRows === 0) {
-                    return res.status(404).json({ error: 'Borrow request not found' });
-                }
-                console.log(`✅ Borrow request ${requestId} updated to ${status}`);
-                res.json({ success: true, updated: result.affectedRows });
             }
         );
     }
