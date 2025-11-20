@@ -122,20 +122,51 @@ class _UserBorrowingScreenState extends State<UserBorrowingScreen> {
                 const Text('Lender:', style: TextStyle(fontSize: 20)),
                 const SizedBox(height: 1),
                 Row(
-                  children: const [
-                    Icon(Icons.person, size: 36),
-                    SizedBox(width: 5),
-                    Text(
-                      'Lender name',
-                      style: TextStyle(color: Colors.black54, fontSize: 20),
+                  children: [
+                    const Icon(Icons.person, size: 36),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        widget.item.lenderName ?? 'Unknown lender',
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    Spacer(),
-                    IconButton(
-                      onPressed: null,
-                      icon: Icon(
-                        Icons.chat_bubble_outline,
-                        size: 36,
-                        color: Colors.black54,
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_month,
+                      size: 30,
+                      color: Colors.black87,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Borrow Date: ${widget.borrowDate}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Return Date: ${widget.returnDate}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

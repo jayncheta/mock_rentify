@@ -71,39 +71,36 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
+        Uri.parse('http://10.2.8.26:3000/history?lender_id=$_lenderId'),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> requests = jsonDecode(response.body);
+        final List<dynamic> historyData = jsonDecode(response.body);
         final history = <Map<String, dynamic>>[];
 
-        for (var req in requests) {
-          // Filter by lender_id and include approved/returned rentals
-          if (req['lender_id'] == _lenderId &&
-              (req['status'] == 'Approved' ||
-                  req['status'] == 'Returned' ||
-                  req['returned_at'] != null)) {
-            history.add({
-              'item': {
-                'id': req['item_id']?.toString() ?? '',
-                'title': req['item_name'] ?? 'Unknown Item',
-              },
-              'borrowerName': req['borrower_name'] ?? 'Unknown',
-              'borrowDate': req['borrow_date'] ?? '',
-              'returnDate': req['return_date'] ?? '',
-              'returnedAt': req['returned_at'],
-              'status': req['status'] ?? 'Approved',
-              'lateReturn': _isLateReturn(
-                req['return_date'],
-                req['returned_at'],
-              ),
-              'imageUrl': req['image_url'],
-            });
-          }
+        for (var record in historyData) {
+          final status = (record['status'] ?? '').toString();
+          final isReturned = status.startsWith('Returned');
+          history.add({
+            'item': {
+              'id': record['item_id']?.toString() ?? '',
+              'title': record['item_name'] ?? 'Unknown Item',
+            },
+            'borrowerName': record['borrower_name'] ?? 'Unknown',
+            'lenderName': record['lender_name'] ?? 'Unknown',
+            'borrowDate': record['borrow_date'] ?? '',
+            'returnDate': record['return_date'] ?? '',
+            'status': status.isEmpty ? 'Returned' : status,
+            'returnedAt': isReturned
+                ? (record['return_date'] ?? record['created_at'])
+                : null,
+            'lateReturn':
+                status == 'Returned_Late' || record['is_late_flagged'] == 1,
+            'imageUrl': record['image_url'],
+          });
         }
 
-        // Sort by borrow date, newest first
+        // Sort by created date, newest first
         history.sort((a, b) {
           final aDate =
               DateTime.tryParse(a['borrowDate'] ?? '') ?? DateTime(1970);
@@ -121,17 +118,6 @@ class _LenderHistoryPageState extends State<LenderHistoryPage> {
       }
     } catch (e) {
       debugPrint('Error loading history: $e');
-    }
-  }
-
-  bool _isLateReturn(String? returnDate, String? returnedAt) {
-    if (returnDate == null || returnedAt == null) return false;
-    try {
-      final expectedReturn = DateTime.parse(returnDate);
-      final actualReturn = DateTime.parse(returnedAt);
-      return actualReturn.isAfter(expectedReturn);
-    } catch (_) {
-      return false;
     }
   }
 

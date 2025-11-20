@@ -33,29 +33,36 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
   Future<void> _loadHistory() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.2.8.26:3000/borrow-requests'),
+        Uri.parse('http://10.2.8.26:3000/history'),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> requests = jsonDecode(response.body);
+        final List<dynamic> historyData = jsonDecode(response.body);
         final history = <Map<String, dynamic>>[];
 
-        for (var req in requests) {
-          // Only show approved or completed rentals
-          if (req['status'] == 'Approved' || req['returned_at'] != null) {
-            history.add({
-              'item': {
-                'id': req['item_id']?.toString() ?? '',
-                'title': req['item_name'] ?? 'Unknown Item',
-              },
-              'borrowerName': req['borrower_name'] ?? 'Unknown',
-              'borrowDate': req['borrow_date'] ?? '',
-              'returnDate': req['return_date'] ?? '',
-              'returnedAt': req['returned_at'],
-              'status': req['status'] ?? 'Pending',
-              'imageUrl': req['image_url'],
-            });
-          }
+        for (var record in historyData) {
+          final status = (record['status'] ?? '').toString();
+          final isReturned = status.startsWith('Returned');
+          history.add({
+            'item': {
+              'id': record['item_id']?.toString() ?? '',
+              'title': record['item_name'] ?? 'Unknown Item',
+            },
+            'borrowerName': record['borrower_name'] ?? 'Unknown',
+            'lenderName': record['lender_name'] ?? 'Unknown',
+            'borrowDate': record['borrow_date'] ?? '',
+            'returnDate': record['return_date'] ?? '',
+            'status': status.isEmpty ? 'Returned' : status,
+            // Provide a synthetic returned timestamp for UI compatibility
+            'returnedAt': isReturned
+                ? (record['return_date'] ?? record['created_at'])
+                : null,
+            'lateReturn':
+                status == 'Returned_Late' || record['is_late_flagged'] == 1,
+            'imageUrl': record['image_url'],
+            'borrowerReason': record['borrower_reason'],
+            'lenderResponse': record['lender_response'],
+          });
         }
 
         if (mounted) {
@@ -239,6 +246,7 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                         final rec = _filteredHistory[index];
                         final item = rec['item'];
                         final borrowerName = rec['borrowerName'] ?? 'Unknown';
+                        final lenderName = rec['lenderName'] ?? 'Unknown';
                         final borrowDate = rec['borrowDate'] ?? '';
                         final returnDate = rec['returnDate'] ?? '';
                         final returnedAt = rec['returnedAt'];
@@ -292,6 +300,7 @@ class _StaffHistoryPageState extends State<StaffHistoryPage> {
                             ),
                             subtitle: Text(
                               'Borrower: $borrowerName\n'
+                              'Lender: $lenderName\n'
                               'Borrowed: $borrowDate\n'
                               'Expected Return: $returnDate\n'
                               '${returnedAt != null ? 'Returned: ${returnedAt.toString().split('T')[0]}' : 'Status: $statusText'}',

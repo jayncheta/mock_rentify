@@ -30,11 +30,9 @@ db.connect((err) => {
 // -------- GET ALL ITEMS --------
 app.get('/items', (req, res) => {
     const includeDisabled = req.query.includeDisabled === 'true';
-    const query = includeDisabled 
-        ? 'SELECT * FROM items' 
-        : 'SELECT * FROM items WHERE availability_status = "Available"';
-    
-    db.query(query, (err, results) => {
+    const baseCondition = includeDisabled ? '1=1' : 'i.availability_status = "Available"';
+    const sql = `SELECT i.*, l.full_name AS lender_name \n               FROM items i \n               LEFT JOIN lender l ON i.lender_id = l.lender_id \n               WHERE ${baseCondition} \n               ORDER BY i.item_id DESC`;
+    db.query(sql, (err, results) => {
         if (err) {
             console.error('Error fetching items:', err);
             return res.status(500).json({ error: err });
@@ -43,52 +41,44 @@ app.get('/items', (req, res) => {
     });
 });
 
-// -------- CREATE BORROW REQUEST --------
+// -------- CREATE BORROW REQUEST (validates item availability) --------
 app.post('/borrow-request', (req, res) => {
     const { item_id, borrower_id, lender_id, borrower_reason, borrow_date, return_date } = req.body;
     if (!item_id || !borrower_id || !lender_id) {
-        return res.status(400).json({ error: "Missing required fields." });
+        return res.status(400).json({ error: 'Missing required fields.' });
     }
-    db.query(
-        'INSERT INTO borrow_requests (item_id, borrower_id, lender_id, borrower_reason, borrow_date, return_date) VALUES (?, ?, ?, ?, ?, ?)',
-        [item_id, borrower_id, lender_id, borrower_reason || '', borrow_date || null, return_date || null],
-        (err, result) => {
-            if (err) {
-                console.error('Error inserting borrow_request:', err);
-                return res.status(500).json({ error: err });
-            }
-            res.json({ success: true, request_id: result.insertId });
+
+    // Check item availability before allowing borrow
+    db.query('SELECT availability_status FROM items WHERE item_id = ?', [item_id], (err, rows) => {
+        if (err) {
+            console.error('Error checking item availability:', err);
+            return res.status(500).json({ error: 'Database error.' });
         }
-    );
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ error: 'Item not found.' });
+        }
+        const status = (rows[0].availability_status || '').toString().toLowerCase();
+        // Treat anything not exactly 'available' as blocked (e.g. Disabled, Unavailable)
+        if (status !== 'available') {
+            return res.status(400).json({ error: 'Item is not available for borrowing.' });
+        }
+
+        // Proceed to insert borrow request now that item is confirmed available
+        db.query(
+            'INSERT INTO borrow_requests (item_id, borrower_id, lender_id, borrower_reason, borrow_date, return_date) VALUES (?, ?, ?, ?, ?, ?)',
+            [item_id, borrower_id, lender_id, borrower_reason || '', borrow_date || null, return_date || null],
+            (err2, result) => {
+                if (err2) {
+                    console.error('Error inserting borrow_request:', err2);
+                    return res.status(500).json({ error: 'Failed to create borrow request.' });
+                }
+                res.json({ success: true, request_id: result.insertId });
+            }
+        );
+    });
 });
 
-// -------- GET ALL BORROW REQUESTS --------
-app.post('/borrow-request', (req, res) => {
-    const { 
-        item_id, 
-        borrower_id, 
-        lender_id, 
-        borrower_reason,
-        borrow_date,     // Add these
-        return_date      // Add these
-    } = req.body;
-
-    db.query(
-        `INSERT INTO borrow_requests 
-         (item_id, borrower_id, lender_id, borrower_reason, borrow_date, return_date) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [item_id, borrower_id, lender_id, borrower_reason || '', borrow_date || null, return_date || null],
-        (err, result) => {
-            if (err) {
-                console.error('Error inserting borrow_request:', err);
-                return res.status(500).json({ error: err });
-            }
-            res.json({ success: true, request_id: result.insertId });
-        }
-    );
-});
-
-// -------- GET BORROW REQUESTS FOR USER --------
+// -------- GET ALL BORROW REQUESTS (includes lender name) --------
 app.get('/borrow-requests', (req, res) => {
     db.query(`
         SELECT 
@@ -106,10 +96,12 @@ app.get('/borrow-requests', (req, res) => {
             i.description AS item_description,
             i.availability_status,
             i.image_url,
-            u.full_name AS borrower_name
+            u.full_name AS borrower_name,
+            l.full_name AS lender_name
         FROM borrow_requests br
         LEFT JOIN items i ON br.item_id = i.item_id
         LEFT JOIN users u ON br.borrower_id = u.user_id
+        LEFT JOIN lender l ON br.lender_id = l.lender_id
         ORDER BY br.request_id DESC
     `, (err, results) => {
         if (err) {
@@ -120,7 +112,46 @@ app.get('/borrow-requests', (req, res) => {
     });
 });
 
-// Get borrow requests for a specific user
+// -------- GET SINGLE BORROW REQUEST --------
+app.get('/borrow-requests/:requestId', (req, res) => {
+    const { requestId } = req.params;
+    db.query(`
+        SELECT 
+            br.request_id,
+            br.item_id,
+            br.borrower_id,
+            br.lender_id,
+            br.staff_processed_return_id,
+            br.status,
+            br.borrower_reason,
+            br.lender_response,
+            br.borrow_date,
+            br.return_date,
+            i.item_name,
+            i.description AS item_description,
+            i.availability_status,
+            i.image_url,
+            u.full_name AS borrower_name,
+            l.full_name AS lender_name
+        FROM borrow_requests br
+        LEFT JOIN items i ON br.item_id = i.item_id
+        LEFT JOIN users u ON br.borrower_id = u.user_id
+        LEFT JOIN lender l ON br.lender_id = l.lender_id
+        WHERE br.request_id = ?
+        LIMIT 1
+    `, [requestId], (err, results) => {
+        if (err) {
+            console.error('Error fetching single borrow request:', err);
+            return res.status(500).json({ error: 'Database error.' });
+        }
+        if (!results || results.length === 0) {
+            return res.status(404).json({ error: 'Borrow request not found.' });
+        }
+        res.json(results[0]);
+    });
+});
+
+// Get borrow requests for a specific user (includes lender name)
 app.get('/users/:userId/borrow-requests', (req, res) => {
     const { userId } = req.params;
     
@@ -139,9 +170,11 @@ app.get('/users/:userId/borrow-requests', (req, res) => {
             i.item_name,
             i.description AS item_description,
             i.availability_status,
-            i.image_url
+            i.image_url,
+            l.full_name AS lender_name
         FROM borrow_requests br
         LEFT JOIN items i ON br.item_id = i.item_id
+        LEFT JOIN lender l ON br.lender_id = l.lender_id
         WHERE br.borrower_id = ?
         ORDER BY br.request_id DESC
     `, [userId], (err, results) => {
@@ -187,6 +220,13 @@ app.patch('/borrow-requests/:requestId', (req, res) => {
                 const request = requests[0];
                 const historyStatus = late_return ? 'Returned_Late' : 'Returned';
                 
+                console.log(`📝 Inserting into history:`, {
+                    user_id: request.borrower_id,
+                    item_id: request.item_id,
+                    status: historyStatus,
+                    is_late_flagged: late_return ? 1 : 0
+                });
+                
                 // Insert into history table (using actual schema)
                 db.query(
                     `INSERT INTO history (user_id, item_id, borrow_date, return_date, status, 
@@ -204,8 +244,15 @@ app.patch('/borrow-requests/:requestId', (req, res) => {
                     ],
                     (err, result) => {
                         if (err) {
-                            console.error('Error inserting into history:', err);
-                            return res.status(500).json({ error: err.message });
+                            console.error('❌ Error inserting into history:', {
+                                code: err.code,
+                                sqlMessage: err.sqlMessage,
+                                sql: err.sql
+                            });
+                            return res.status(500).json({ 
+                                error: 'Failed to insert into history',
+                                details: err.sqlMessage 
+                            });
                         }
                         
                         // Delete from borrow_requests
@@ -254,6 +301,58 @@ app.patch('/borrow-requests/:requestId', (req, res) => {
             }
         );
     }
+});
+
+// -------- CANCEL BORROW REQUEST (borrower initiated) --------
+app.patch('/borrow-requests/:requestId/cancel', (req, res) => {
+    const { requestId } = req.params;
+    const { borrower_id } = req.body;
+    if (!borrower_id) {
+        return res.status(400).json({ error: 'borrower_id required' });
+    }
+    // Fetch request to validate ownership and status
+    db.query(
+        'SELECT request_id, borrower_id, status FROM borrow_requests WHERE request_id = ?',
+        [requestId],
+        (err, rows) => {
+            if (err) {
+                console.error('Error fetching borrow request for cancel:', err);
+                return res.status(500).json({ error: 'Database error.' });
+            }
+            if (!rows || rows.length === 0) {
+                return res.status(404).json({ error: 'Borrow request not found.' });
+            }
+            const r = rows[0];
+            if (parseInt(r.borrower_id) !== parseInt(borrower_id)) {
+                return res.status(403).json({ error: 'Not authorized to cancel this request.' });
+            }
+            const currStatus = (r.status || '').toString().toLowerCase();
+            if (currStatus !== 'pending') {
+                return res.status(400).json({ error: 'Only pending requests can be cancelled.' });
+            }
+            db.query(
+                'UPDATE borrow_requests SET status = ? WHERE request_id = ?',
+                ['Canceled', requestId],
+                (err2, result) => {
+                    if (err2) {
+                        console.error('Error cancelling borrow request:', {
+                            code: err2.code,
+                            sqlMessage: err2.sqlMessage,
+                            message: err2.message
+                        });
+                        return res.status(500).json({ 
+                            error: 'Failed to cancel request.',
+                            details: err2.sqlMessage || err2.message
+                        });
+                    }
+                    if (result.affectedRows === 0) {
+                        return res.status(404).json({ error: 'Borrow request not found.' });
+                    }
+                    res.json({ success: true, cancelled: true, request_id: requestId });
+                }
+            );
+        }
+    );
 });
 
 // -------- GET USER INFO --------
@@ -543,6 +642,51 @@ app.patch('/items/:itemId/status', (req, res) => {
             if (err) return res.status(500).json({ error: err });
             res.json({ success: true });
         });
+});
+
+// -------- GET HISTORY --------
+app.get('/history', (req, res) => {
+    const lenderId = req.query.lender_id;
+    
+    let query = `
+        SELECT 
+            h.history_id,
+            h.user_id,
+            h.item_id,
+            h.borrow_date,
+            h.return_date,
+            h.status,
+            h.borrower_reason,
+            h.lender_response,
+            h.is_late_flagged,
+            h.created_at,
+            i.item_name,
+            i.image_url,
+            i.lender_id,
+            u.username as borrower_name,
+            l.full_name AS lender_name
+        FROM history h
+        JOIN items i ON h.item_id = i.item_id
+        JOIN users u ON h.user_id = u.user_id
+        LEFT JOIN lender l ON i.lender_id = l.lender_id
+    `;
+    
+    const params = [];
+    
+    if (lenderId) {
+        query += ' WHERE i.lender_id = ?';
+        params.push(lenderId);
+    }
+    
+    query += ' ORDER BY h.created_at DESC';
+    
+    db.query(query, params, (err, results) => {
+        if (err) {
+            console.error('Error fetching history:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);
+    });
 });
 
 // -------- START SERVER --------

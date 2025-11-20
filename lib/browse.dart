@@ -206,6 +206,7 @@ class Item {
   final String description;
   final bool isDisabled;
   final bool isBorrowed;
+  final String? lenderName;
 
   const Item({
     required this.id,
@@ -215,6 +216,7 @@ class Item {
     this.description = '',
     this.isDisabled = false,
     this.isBorrowed = false,
+    this.lenderName,
   });
 
   Item copyWith({
@@ -225,6 +227,7 @@ class Item {
     String? description,
     bool? isDisabled,
     bool? isBorrowed,
+    String? lenderName,
   }) {
     return Item(
       id: id ?? this.id,
@@ -234,6 +237,7 @@ class Item {
       description: description ?? this.description,
       isDisabled: isDisabled ?? this.isDisabled,
       isBorrowed: isBorrowed ?? this.isBorrowed,
+      lenderName: lenderName ?? this.lenderName,
     );
   }
 }

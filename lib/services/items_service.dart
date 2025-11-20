@@ -33,6 +33,10 @@ class ItemsService {
         debugPrint('✅ Fetched ${data.length} items from database');
 
         final List<Item> fetchedItems = data.map((item) {
+          final raw = item['lender_name'] ?? item['lenderName'];
+          final normalized = (raw is String && raw.trim().isNotEmpty)
+              ? raw.trim()
+              : 'Yaya'; // fallback so UI never shows Unknown
           return Item(
             id: item['item_id']?.toString() ?? item['id']?.toString() ?? '',
             title:
@@ -42,10 +46,14 @@ class ItemsService {
             imageUrl: _mapItemToImage(item['item_name']?.toString() ?? ''),
             statusColor: item['availability_status']?.toString() ?? 'Available',
             description: item['description']?.toString() ?? '',
-            isDisabled:
-                item['availability_status']?.toString().toLowerCase() ==
-                'unavailable',
+            isDisabled: (() {
+              final status = item['availability_status']
+                  ?.toString()
+                  .toLowerCase();
+              return status == 'unavailable' || status == 'disabled';
+            })(),
             isBorrowed: false, // Will be updated from local flags
+            lenderName: normalized,
           );
         }).toList();
 
@@ -233,6 +241,7 @@ class ItemsService {
         title: title,
         imageUrl: imageUrl,
         statusColor: 'Available',
+        lenderName: 'Yaya', // default lender name fallback
       );
 
       // Add to local list

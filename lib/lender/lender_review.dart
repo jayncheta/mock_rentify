@@ -13,10 +13,20 @@ class BorrowRequestService {
 
   static const String _baseUrl = 'http://10.2.8.26:3000';
 
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    try {
+      return DateTime.parse(value.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fetch all pending borrow requests for a specific lender
   Future<List<Map<String, dynamic>>> getPendingRequests(int lenderId) async {
     try {
       debugPrint('🔍 Fetching requests for lender_id: $lenderId');
+      // Fetch all borrow requests then filter locally; could be optimized with query params later
       final response = await http.get(Uri.parse('$_baseUrl/borrow-requests'));
 
       debugPrint('📡 Response status: ${response.statusCode}');
@@ -33,12 +43,27 @@ class BorrowRequestService {
         }
 
         // Filter requests for this lender that are pending
+        final now = DateTime.now();
         final filtered = allRequests
-            .where(
-              (req) =>
-                  req['lender_id'] == lenderId && req['status'] == 'Pending',
-            )
-            .map((req) => req as Map<String, dynamic>)
+            .where((req) {
+              // Must match lender
+              if (req['lender_id'] != lenderId) return false;
+              // Status must be Pending (still awaiting review)
+              if (req['status'] != 'Pending') return false;
+              // Optional: hide requests whose intended borrow_date is in the past? (keeping all for now)
+              return true;
+            })
+            .map((req) {
+              // Normalize keys for UI consistency
+              return {
+                ...req as Map<String, dynamic>,
+                'item_name': req['item_name'] ?? req['title'] ?? 'Unknown Item',
+                'borrower_name': req['borrower_name'] ?? req['full_name'],
+                // Derive simple flag if overdue before approval (edge case)
+                'is_overdue_preapproval':
+                    _parseDate(req['return_date'])?.isBefore(now) == true,
+              };
+            })
             .toList();
 
         debugPrint(
@@ -133,6 +158,10 @@ class _LenderReviewScreenState extends State<LenderReviewScreen> {
 
     try {
       final requests = await _requestService.getPendingRequests(_lenderId!);
+      // Ensure lender_name present for display consistency
+      for (final r in requests) {
+        r['lender_name'] = r['lender_name'] ?? 'Yaya'; // fallback
+      }
       setState(() {
         _pendingRequests = requests;
         _isLoading = false;
